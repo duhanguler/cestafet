@@ -1,0 +1,13 @@
+{
+  "name": "cestafet",
+  "owner": { "name": "orkono" },
+  "metadata": { "description": "Notices between AI coding sessions on one machine, across Claude Code profiles." },
+  "plugins": [
+    {
+      "name": "cestafet",
+      "source": "./plugin",
+      "description": "Sessions see each other per project; tell a coordinator session something and every other session of the project gets it.",
+      "license": "Apache-2.0"
+    }
+  ]
+}

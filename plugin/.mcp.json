@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "cestafet": { "command": "cestafet", "args": ["mcp"] }
+  }
+}
