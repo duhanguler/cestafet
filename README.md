@@ -1,4 +1,6 @@
-# cestafet
+<p align="center"><img src="assets/icon.svg" width="128" alt="cestafet icon"></p>
+
+<h1 align="center">cestafet</h1>
 
 **Your AI coding sessions, aware of each other.**
 
