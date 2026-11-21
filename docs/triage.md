@@ -91,9 +91,11 @@ MCP çağrısında hook'un yazdığı geçici bir işaret dosyası kullanılır.
 4. **MVP:** S1–S4 (P0).
 5. **v0.2:** S5–S7 (P1), `SECURITY.md`, README demosu, ilk release.
 
-## 8. Açık sorular (kullanıcı kararı)
+## 8. Kararlar (eski açık sorular)
 
-| # | Soru | Önerilen varsayılan |
+Osman 2026-11-21'de önerilen varsayılanların tamamını kabul etti.
+
+| # | Soru | Karar |
 |---|---|---|
 | Q1 | Bildirimlerin bir süre sonunda kendiliğinden geçersiz olması gerekiyor mu (örneğin "testler bitene kadar")? | MVP'de yok; koordinatör "test bitti" diye yeni bir bildirim gönderir |
 | Q2 | Koordinatör yokken sıradan bir oturum bildirim gönderebilsin mi? | Evet, ama `from` alanında koordinatör olmadığı açıkça görünür |
