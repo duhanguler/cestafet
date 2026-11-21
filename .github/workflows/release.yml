@@ -8,15 +8,24 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - uses: goreleaser/goreleaser-action@v6
+      - name: Plugin version must match the tag
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          got="$(jq -r .version plugin/.claude-plugin/plugin.json)"
+          if [ "$got" != "$want" ]; then
+            echo "plugin/.claude-plugin/plugin.json has version $got, tag is $want" >&2
+            exit 1
+          fi
+      - uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
