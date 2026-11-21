@@ -28,9 +28,11 @@ baton — with a **c** for Claude, Codex, ChatGPT.
   repository, branch and project before your first prompt.
 - **Projects.** A project is a git repository (its normalized `origin` URL, so every clone,
   worktree and profile of it meets in one place). Several repositories can be grouped into one
-  project — e.g. a backend, a UI and two workers — with `/cestafet:project <name>`.
+  project — e.g. a backend, a UI and two workers — with `/cestafet:project <name>`. Outside git,
+  a session joins the nearest parent directory that already has a session.
 - **Delivery.** Notices are injected through hooks: at the next prompt (`UserPromptSubmit`) and —
   for sessions busy on their own — after their next tool call (`PostToolUse`), before they act again.
+  Subagent tool calls never consume a notice; it waits for the main agent.
 - **Coordinator.** `/cestafet:coordinate` makes a session the project's coordinator and announces
   it to the others.
 - **Local only.** One Go binary, one SQLite file (`~/.local/share/cestafet/bus.db`, mode 0600),
@@ -72,12 +74,13 @@ is respected in their next steps; an agent-origin notice is weighed, never blind
 ```
 cestafet sessions [project]   live sessions of a project
 cestafet notices [project]    recent notices of a project
+cestafet send <project> <text>  send a notice from the terminal (origin=agent)
 cestafet doctor               profiles, plugin state, identity of this directory
 ```
 
 ## Status
 
-MVP (v0.1). Claude Code only; a Codex adapter, push delivery to idle sessions and notice expiry
+v0.1.0. Claude Code only; push delivery to idle sessions, notice expiry and a Codex adapter
 are planned; see [docs/roadmap.md](docs/roadmap.md). Design notes: [docs/design.md](docs/design.md).
 
 ## License

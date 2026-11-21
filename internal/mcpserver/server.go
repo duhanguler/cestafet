@@ -37,6 +37,11 @@ func (s *Server) self() (store.Session, error) {
 		return store.Session{}, errors.New("cestafet could not find the claude process that started this MCP server")
 	}
 	sess, err := s.app.Store.ByClaudePID(s.claudePID)
+	// A hook may be registering the session right now (startup, /clear): wait briefly.
+	for i := 0; i < 10 && errors.Is(err, store.ErrNotFound); i++ {
+		time.Sleep(200 * time.Millisecond)
+		sess, err = s.app.Store.ByClaudePID(s.claudePID)
+	}
 	if errors.Is(err, store.ErrNotFound) {
 		return store.Session{}, errors.New("this session is not registered yet; the cestafet plugin's hooks register it " +
 			"at session start or on the next prompt (run `cestafet doctor` if this persists)")

@@ -25,6 +25,8 @@ Usage:
                            list live sessions (default: this directory's project)
   cestafet notices [<project>]
                            list recent notices of a project
+  cestafet send <project> <text | ->
+                           send a notice from the terminal (origin=agent)
   cestafet mcp             run the MCP server (started by the plugin)
   cestafet hook <event>    run a hook handler (started by the plugin):
                            session-start | prompt | post-tool | session-end
@@ -61,6 +63,8 @@ func run(ctx context.Context, args []string) error {
 		return runSessions(rest)
 	case "notices":
 		return runNotices(rest)
+	case "send":
+		return runSend(rest)
 	case "version", "--version", "-v":
 		fmt.Println("cestafet", version)
 		return nil

@@ -120,3 +120,36 @@ func TestBadInput(t *testing.T) {
 		}
 	}
 }
+
+func TestSubagentToolCallDoesNotConsumeNotice(t *testing.T) {
+	app := newApp(t)
+	fire(t, app, "session-start", `{"session_id":"coord","cwd":"/w/app"}`, 1)
+	fire(t, app, "session-start", `{"session_id":"main","cwd":"/w/app"}`, 2)
+	coord, _ := app.Store.Get("coord")
+	if _, _, err := app.Store.Send(store.NewNotice{From: coord, Origin: store.OriginAgent, Body: "hold deploys"}); err != nil {
+		t.Fatal(err)
+	}
+	sub := fire(t, app, "post-tool", `{"session_id":"main","cwd":"/w/app","agent_id":"a1","agent_type":"general-purpose"}`, 2)
+	if sub != "" {
+		t.Fatalf("notice injected into a subagent: %q", sub)
+	}
+	if got := fire(t, app, "post-tool", `{"session_id":"main","cwd":"/w/app"}`, 2); !strings.Contains(got, "hold deploys") {
+		t.Fatalf("main agent did not get the held notice: %q", got)
+	}
+}
+
+func TestClearKeepsCoordinatorRole(t *testing.T) {
+	app := newApp(t)
+	fire(t, app, "session-start", `{"session_id":"before","cwd":"/w/app","source":"startup"}`, 7)
+	if _, err := app.Store.MakeCoordinator("before"); err != nil {
+		t.Fatal(err)
+	}
+	fire(t, app, "session-end", `{"session_id":"before","cwd":"/w/app","reason":"clear"}`, 7)
+	ctx := fire(t, app, "session-start", `{"session_id":"after","cwd":"/w/app","source":"clear"}`, 7)
+	if !strings.Contains(ctx, "You are the project's coordinator") {
+		t.Fatalf("role not carried over /clear: %q", ctx)
+	}
+	if old, _ := app.Store.Get("before"); old.Status != store.StatusGone {
+		t.Fatalf("old session status = %s", old.Status)
+	}
+}

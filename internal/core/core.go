@@ -4,6 +4,8 @@ package core
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -17,6 +19,7 @@ type App struct {
 	Store        *store.Store
 	ProjectsPath string
 	LookupRepo   func(dir string) identity.Repo
+	Home         string // the user's home directory; never used as a project
 }
 
 // Open opens the default store and project file.
@@ -30,20 +33,58 @@ func Open() (*App, error) {
 		_ = st.Close()
 		return nil, err
 	}
-	return &App{Store: st, ProjectsPath: pp, LookupRepo: identity.LookupRepo}, nil
+	home, _ := os.UserHomeDir()
+	return &App{Store: st, ProjectsPath: pp, LookupRepo: identity.LookupRepo, Home: home}, nil
 }
 
 // Close releases the store.
 func (a *App) Close() error { return a.Store.Close() }
 
 // Locate resolves the location and project of a working directory.
+//
+// Resolution: explicit mapping (remote, then path prefix), then the git remote,
+// then the repo root. A directory outside any git repository and outside every
+// mapping joins the nearest ancestor directory that is already the project of a
+// live session (so sessions in ~/work/app and ~/work/app/docs meet), and only
+// then falls back to the directory itself.
 func (a *App) Locate(cwd string) (projects.Location, string, error) {
-	loc := projects.Location{Cwd: cwd, Repo: a.LookupRepo(cwd)}
+	loc := projects.Location{Cwd: filepath.Clean(cwd), Repo: a.LookupRepo(cwd)}
 	cfg, err := projects.Load(a.ProjectsPath)
 	if err != nil {
 		return loc, "", err
 	}
-	return loc, cfg.Resolve(loc), nil
+	project := cfg.Resolve(loc)
+	if loc.Repo.Root != "" || project != loc.Cwd {
+		return loc, project, nil
+	}
+	if parent, err := a.ancestorProject(loc.Cwd); err != nil {
+		return loc, "", err
+	} else if parent != "" {
+		return loc, parent, nil
+	}
+	return loc, project, nil
+}
+
+// ancestorProject returns the nearest strict ancestor of cwd that is the
+// project key of a live session, never "/" or the home directory or above it.
+func (a *App) ancestorProject(cwd string) (string, error) {
+	keys, err := a.Store.LivePathProjects()
+	if err != nil {
+		return "", err
+	}
+	best := ""
+	for _, k := range keys {
+		if k == cwd || k == "/" || !strings.HasPrefix(cwd, strings.TrimRight(k, "/")+"/") {
+			continue
+		}
+		if a.Home != "" && strings.HasPrefix(cwd, a.Home+"/") && !strings.HasPrefix(k, a.Home+"/") {
+			continue // the walk stops at $HOME
+		}
+		if len(k) > len(best) {
+			best = k
+		}
+	}
+	return best, nil
 }
 
 // Register records or refreshes a session from its id, cwd and owning claude pid.

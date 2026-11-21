@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -245,6 +246,34 @@ func runNotices(args []string) error {
 		fmt.Printf("  #%d %s  %s (%s, origin=%s)\n     %s\n", n.ID, ago(n.CreatedAt), n.FromProfile, n.FromRole,
 			n.Origin, strings.ReplaceAll(n.Body, "\n", "\n     "))
 	}
+	return nil
+}
+
+// runSend sends a notice from the terminal (origin=agent, sender "terminal").
+func runSend(args []string) error {
+	if len(args) != 2 {
+		return fmt.Errorf("usage: cestafet send <project> <text | - for stdin>")
+	}
+	body := args[1]
+	if body == "-" {
+		data, err := io.ReadAll(io.LimitReader(os.Stdin, store.MaxBodyBytes+1))
+		if err != nil {
+			return fmt.Errorf("read stdin: %w", err)
+		}
+		body = string(data)
+	}
+	app, err := core.Open()
+	if err != nil {
+		return err
+	}
+	defer app.Close()
+	from := store.Session{ID: fmt.Sprintf("terminal-%d", os.Getpid()), Profile: "terminal",
+		Project: args[0], Role: store.RoleMember}
+	id, to, err := app.Store.Send(store.NewNotice{From: from, Origin: store.OriginAgent, Body: body})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("notice #%d sent to %d session(s)\n", id, len(to))
 	return nil
 }
 
