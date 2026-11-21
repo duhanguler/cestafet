@@ -17,6 +17,10 @@ type Input struct {
 	Cwd       string `json:"cwd"`
 	Source    string `json:"source"` // SessionStart: startup, resume, clear, compact
 	Prompt    string `json:"prompt"` // UserPromptSubmit
+	Reason    string `json:"reason"` // SessionEnd: clear, logout, prompt_input_exit, other
+	// AgentID is set when the tool call was made by a subagent. Its context is
+	// not the main conversation's, so notices are held for the main agent.
+	AgentID string `json:"agent_id"`
 }
 
 type specificOutput struct {
@@ -61,6 +65,11 @@ func Handle(app *core.App, event string, in io.Reader, out io.Writer, claudePID 
 func run(app *core.App, name string, in Input, claudePID int) (string, error) {
 	switch name {
 	case "SessionEnd":
+		if in.Reason == "clear" {
+			// /clear: the same claude process starts a new session id right away;
+			// registering it retires this one and carries the coordinator role over.
+			return "", nil
+		}
 		return "", app.Store.End(in.SessionID)
 
 	case "SessionStart":
@@ -95,6 +104,9 @@ func run(app *core.App, name string, in Input, claudePID int) (string, error) {
 			}
 		} else if err := app.Store.Touch(in.SessionID); err != nil {
 			return "", err
+		}
+		if in.AgentID != "" {
+			return "", nil
 		}
 		return pending(app, in.SessionID), nil
 	}

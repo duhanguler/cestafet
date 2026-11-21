@@ -19,9 +19,12 @@ func newStore(t *testing.T) *Store {
 	return s
 }
 
+var nextPID = 1000
+
 func register(t *testing.T, s *Store, id, project string) Session {
 	t.Helper()
-	in := Session{ID: id, ClaudePID: len(id) + 100, Profile: "p-" + id, Project: project, Cwd: "/w/" + id}
+	nextPID++
+	in := Session{ID: id, ClaudePID: nextPID, Profile: "p-" + id, Project: project, Cwd: "/w/" + id}
 	if _, err := s.Register(in); err != nil {
 		t.Fatalf("register %s: %v", id, err)
 	}
@@ -214,5 +217,30 @@ func TestIdleAndGone(t *testing.T) {
 	}
 	if _, err := s.ByClaudePID(a.ClaudePID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("gone session found by pid: %v", err)
+	}
+}
+
+func TestNewSessionInSameProcessSupersedesOld(t *testing.T) {
+	s := newStore(t)
+	if _, err := s.Register(Session{ID: "before", ClaudePID: 77, Profile: "p", Project: "proj", Cwd: "/w"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.MakeCoordinator("before"); err != nil {
+		t.Fatal(err)
+	}
+	// /clear: same claude process, new session id
+	if _, err := s.Register(Session{ID: "after", ClaudePID: 77, Profile: "p", Project: "proj", Cwd: "/w"}); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := s.Get("before")
+	if old.Status != StatusGone || old.Role != RoleMember {
+		t.Fatalf("old session = %+v", old)
+	}
+	c, err := s.Coordinator("proj")
+	if err != nil || c.ID != "after" {
+		t.Fatalf("coordinator after /clear = %+v, %v", c, err)
+	}
+	if got, _ := s.ByClaudePID(77); got.ID != "after" {
+		t.Fatalf("ByClaudePID = %s", got.ID)
 	}
 }

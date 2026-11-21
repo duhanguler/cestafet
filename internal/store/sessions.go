@@ -74,7 +74,7 @@ func (s *Store) Register(in Session) (bool, error) {
 		return false, fmt.Errorf("insert session: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 1 {
-		return true, nil
+		return true, s.supersede(in.ID, in.ClaudePID)
 	}
 	_, err = s.db.Exec(`
 		UPDATE sessions SET claude_pid = ?, profile = ?, project = ?, repo = ?, cwd = ?,
@@ -85,6 +85,54 @@ func (s *Store) Register(in Session) (bool, error) {
 		return false, fmt.Errorf("refresh session: %w", err)
 	}
 	return false, nil
+}
+
+// supersede handles a claude process that switched to a new session id
+// (/clear, a new conversation in the same process): the earlier sessions of
+// that process are marked gone and the newest one's coordinator role moves to
+// the new id. A claude process runs one session at a time.
+func (s *Store) supersede(newID string, pid int) error {
+	if pid <= 0 {
+		return nil
+	}
+	var role string
+	err := s.db.QueryRow(`SELECT role FROM sessions WHERE claude_pid = ? AND id != ? AND status != ?
+		ORDER BY last_seen DESC LIMIT 1`, pid, newID, StatusGone).Scan(&role)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("find superseded session: %w", err)
+	}
+	if _, err := s.db.Exec(`UPDATE sessions SET status = ?, role = ? WHERE claude_pid = ? AND id != ? AND status != ?`,
+		StatusGone, RoleMember, pid, newID, StatusGone); err != nil {
+		return fmt.Errorf("retire superseded sessions: %w", err)
+	}
+	if role == RoleCoordinator {
+		if _, err := s.db.Exec(`UPDATE sessions SET role = ? WHERE id = ?`, RoleCoordinator, newID); err != nil {
+			return fmt.Errorf("carry coordinator role: %w", err)
+		}
+	}
+	return nil
+}
+
+// LivePathProjects returns the distinct project keys of non-gone sessions that
+// are filesystem paths (sessions outside git repositories and mappings).
+func (s *Store) LivePathProjects() ([]string, error) {
+	rows, err := s.db.Query(`SELECT DISTINCT project FROM sessions WHERE status != ? AND project LIKE '/%'`, StatusGone)
+	if err != nil {
+		return nil, fmt.Errorf("list path projects: %w", err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, fmt.Errorf("scan project: %w", err)
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
 }
 
 // Touch updates last_seen and revives the session.
