@@ -78,7 +78,7 @@ cestafet doctor               profiles, plugin state, identity of this directory
 ## Status
 
 MVP (v0.1). Claude Code only; a Codex adapter, push delivery to idle sessions and notice expiry
-are planned. Design notes: [docs/design.md](docs/design.md).
+are planned; see [docs/roadmap.md](docs/roadmap.md). Design notes: [docs/design.md](docs/design.md).
 
 ## License
 
