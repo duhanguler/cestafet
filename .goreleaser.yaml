@@ -13,3 +13,18 @@ checksum:
   name_template: checksums.txt
 changelog:
   use: github
+homebrew_casks:
+  - name: cestafet
+    description: "Notices between AI coding sessions on one machine, across Claude Code profiles"
+    homepage: https://github.com/orkono/cestafet
+    license: Apache-2.0
+    repository:
+      owner: orkono
+      name: homebrew-tap
+      token: '{{ envOrDefault "HOMEBREW_TAP_TOKEN" "" }}'
+    # Until the tap repo and its token exist, releases skip the tap instead of failing.
+    skip_upload: '{{ if eq (envOrDefault "HOMEBREW_TAP_TOKEN" "") "" }}true{{ end }}'
+    caveats: |
+      Next: run `cestafet setup` to install the Claude Code plugin into your profiles.
+      If macOS blocks the unsigned binary, run:
+        xattr -dr com.apple.quarantine "$(brew --prefix)/bin/cestafet"
