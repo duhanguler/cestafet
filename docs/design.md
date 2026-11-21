@@ -51,7 +51,7 @@ Claude / Codex / ChatGPT; "estafet" is the relay baton.
 |---|---|
 | `session_id` | Claude Code hook payload (`session_id`) |
 | `profile` | basename of `CLAUDE_CONFIG_DIR`, default `claude` |
-| `project` | normalized git remote URL of the repo root (`github.com/orkono/x`); fallback: absolute repo root, then cwd |
+| `project` | resolved as described in *Projects* below |
 | `cwd`, `branch` | hook payload / git |
 | `summary` | what the session is working on (set by the session) |
 | `role` | `member` or `coordinator` |
@@ -60,6 +60,69 @@ Claude / Codex / ChatGPT; "estafet" is the relay baton.
 Worktrees and different profiles of the same repo share one `project`.
 A session not seen for 15 min (configurable) is shown as `idle`; `SessionEnd`
 marks it `gone`.
+
+The `SessionStart` hook registers the session automatically: Claude Code runs
+`cestafet hook session-start` before the first prompt and passes `session_id`
+and `cwd` on stdin; the binary derives profile, project and branch itself.
+
+## Projects
+
+A *project* is the unit notices are scoped to. It can span several
+repositories (e.g. a backend, a UI and two workers that make up one product).
+
+Resolution order for a session's `cwd`:
+
+1. **Explicit mapping** in the central config `$XDG_CONFIG_HOME/cestafet/projects.toml`,
+   matched by the repo's normalized remote URL, then by path prefix.
+2. **Git remote** `origin` of the repo root, normalized (`github.com/orkono/x`).
+3. **Repo root** absolute path (repo without remote).
+4. **cwd** (not a git repo).
+
+```toml
+# ~/.config/cestafet/projects.toml
+[projects.tonton]
+remotes = [
+  "github.com/tontonkaraoke/backend-microservice",
+  "github.com/tontonkaraoke/backend-microservice-ui",
+  "github.com/tontonkaraoke/tonton-karaoke-analysis-worker",
+  "github.com/tontonkaraoke/tonton-karaoke-fast-api-project",
+]
+paths = []   # for directories that are not git repos
+```
+
+Mappings live in one central file, never inside the repositories: shared team
+repos stay untouched and every clone or worktree of a mapped remote joins the
+project automatically.
+
+Inside Claude, `/cestafet:project <name>` adds the current repo (its remote, or
+its path when there is none) to project `<name>`, creating it if needed, and
+moves the live session there. `/cestafet:project` without an argument shows the
+current project and its member repositories. The same operations are MCP tools,
+so plain language works too ("add this repo to the tonton project").
+
+## Installation
+
+```bash
+brew install orkono/tap/cestafet   # or: go install github.com/orkono/cestafet/cmd/cestafet@latest
+cestafet setup
+```
+
+`cestafet setup` is the only CLI step a developer needs:
+
+1. **Discover profiles**: `~/.claude`, `~/.claude-*`, every `CLAUDE_CONFIG_DIR=`
+   found in shell rc files and wrapper scripts on `PATH`, and the current
+   `CLAUDE_CONFIG_DIR`. A directory counts as a profile only if it holds
+   `settings.json` or `projects/`.
+2. **Ask for consent**: list the profiles (with the wrapper that uses each) and
+   let the developer pick; nothing is changed without confirmation.
+3. **Install** into each chosen profile through Claude Code's own CLI
+   (`CLAUDE_CONFIG_DIR=<profile> claude plugin marketplace add …` /
+   `claude plugin install …`); cestafet never edits `settings.json` by hand.
+4. Print a summary; `cestafet doctor` re-checks it later.
+
+`cestafet setup --add <dir>` / `--remove <dir>` change single profiles;
+`cestafet uninstall` removes the plugin from every profile and, on request,
+the database and config. Non-interactive use: `--yes --profile <dir>…`.
 
 ## User experience
 
@@ -79,8 +142,9 @@ user (any session): who else is working on this project?
 claude:             → sessions()
 ```
 
-Two optional slash commands exist only as shortcuts: `/cestafet:coordinate`
-and `/cestafet:who`. Notices are never sent through a slash command.
+Three slash commands exist only as shortcuts: `/cestafet:coordinate`,
+`/cestafet:who` and `/cestafet:project [name]`. Notices are never sent through
+a slash command.
 
 ## MCP tools
 
@@ -89,6 +153,8 @@ and `/cestafet:who`. Notices are never sent through a slash command.
 | `whoami()` | this session's identity record |
 | `introduce(summary)` | set/update what this session is working on |
 | `sessions(project?)` | live sessions in the project with role, summary, last_seen |
+| `project(name?)` | show the current project, or add this repo to project `name` and move the session there |
+| `leave_project()` | remove this repo's mapping; it falls back to automatic resolution |
 | `coordinate()` | become coordinator of the project; announces to all members |
 | `notify(body, to?)` | send a notice to every other session in the project (or to listed session ids) |
 | `notices(unread_only?)` | notices received by this session |

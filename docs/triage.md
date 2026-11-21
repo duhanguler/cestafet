@@ -25,6 +25,8 @@ gerçek bir hasara (yanlış zamanda deploy) yol açabilir.
 | S5 | Oturum "şu iş üzerinde çalışıyorum" özetini paylaşır; koordinatör kimin ne yaptığını görür | **P1** |
 | S6 | Koordinatör bildirimin kimlere ulaştığını ve kimlerin okuduğunu görür | **P1** |
 | S7 | Sonradan açılan oturum, projede hâlâ geçerli olan bildirimleri açılışta alır | **P1** |
+| S9 | Geliştirici `cestafet setup` ile kurar; bilgisayardaki tüm Claude profilleri bulunur, onayla seçilenlere plugin eklenir | **P0** |
+| S10 | Birden fazla repo tek bir projede toplanır (ör. TonTon'un dört reposu); bildirim hepsine gider | **P0** |
 | S8 | Codex ve diğer ajanlar için destek | P3 (sonra) |
 
 ## 3. Kapsam kararları
@@ -32,9 +34,11 @@ gerçek bir hasara (yanlış zamanda deploy) yol açabilir.
 **MVP'de var**
 - Tek Go binary: `cestafet mcp`, `cestafet hook <olay>`, debug amaçlı küçük bir CLI
 - SQLite broker (yerel, ağ yok, dosya izni 0600)
-- MCP araçları: `whoami`, `introduce`, `sessions`, `coordinate`, `notify`, `notices`, `ack`, `notice_status`
+- `cestafet setup` / `doctor` / `uninstall`: profil keşfi, onaylı kurulum, kaldırma
+- Merkezi proje eşleme dosyası: `~/.config/cestafet/projects.toml` (çok repolu projeler)
+- MCP araçları: `whoami`, `introduce`, `sessions`, `project`, `leave_project`, `coordinate`, `notify`, `notices`, `ack`, `notice_status`
 - Hook'lar: `SessionStart`, `UserPromptSubmit`, `PostToolUse`, `SessionEnd`
-- Claude Code plugin'i: MCP ayarı, hook'lar, skill, iki kısayol komutu (`/cestafet:coordinate`, `/cestafet:who`)
+- Claude Code plugin'i: MCP ayarı, hook'lar, skill, üç kısayol komutu (`/cestafet:coordinate`, `/cestafet:who`, `/cestafet:project [isim]`)
 - Kaynak etiketi: `origin="user"` / `origin="agent"`
 
 **MVP'de yok (bilinçli olarak çıkarıldı)**
@@ -56,6 +60,7 @@ tasarımı değiştirebilecekler **kritik** olarak işaretli.
 | B4 | Aynı makinede birden fazla oturum aynı SQLite dosyasına eş zamanlı yazdığında WAL modu yeterli mi? | Veri tutarlılığı | Eş zamanlı yazma testi (`go test -race`, çoklu süreç) | Hayır |
 | B5 | Plugin'in hook'ları ve MCP sunucusu her profilde ayrı kurulmalı mı, tek bir marketplace kaydı yeterli mi? | Kurulum deneyimi | İki profile plugin kurup davranışı izlemek | Hayır |
 | B6 | Hook'un her araç çağrısında çalışmasının gecikmesi (hedef < 20 ms) | Kullanıcı deneyimi | Benchmark; Go binary'nin soğuk başlangıç süresini ölçmek | Hayır |
+| B8 | `CLAUDE_CONFIG_DIR=<profil> claude plugin marketplace add` ve `claude plugin install` etkileşimsiz çalışıyor mu, kurulum doğru profile mi yazılıyor? | S9 kurulum akışı buna bağlı | Geçici bir profil dizininde denemek | **Evet** |
 | B7 | Claude Code'un kendi `ListAgents` / `SendMessage` özelliği profiller arasında çalışıyor mu? | Çalışıyorsa proje konumlandırması değişir | İki profilde oturum açıp denemek | Hayır |
 
 **B3 için risk notu:** MCP sunucusu kendi oturum kimliğini doğrudan bilemeyebilir.
@@ -73,6 +78,8 @@ MCP çağrısında hook'un yazdığı geçici bir işaret dosyası kullanılır.
 | R4 | Her araç çağrısına eklenen bağlam token maliyetini ve gürültüyü artırır | Orta | Düşük | Yalnızca okunmamış bildirim varsa enjekte etmek; aynı bildirimi bir kez göndermek |
 | R5 | Claude Code hook veya plugin API'sindeki değişiklikler | Orta | Orta | Hook sözleşmesini tek bir pakette (`internal/hooks`) izole etmek; payload örnekleriyle sözleşme testleri |
 | R6 | Repo public: kişisel yollar, proje adları veya sırlar sızabilir | Düşük | Yüksek | Örneklerde genel isimler; CI'da gizli bilgi taraması (gitleaks) |
+| R8 | `setup` kullanıcının profillerini değiştirir; yanlış dizini profil sanabilir veya bozuk bir kurulum bırakabilir | Düşük | Orta | Yalnızca `settings.json` veya `projects/` içeren dizinler profil sayılır; her değişiklik öncesi onay; yalnızca resmi `claude plugin` komutları; `uninstall` ile tam geri alma |
+| R9 | Çok repolu projede eşleme dosyası güncel kalmaz (repo yeniden adlandırılır, remote değişir) | Orta | Düşük | `/cestafet:project` ile projenin üye repoları görünür; `doctor` eşleşmeyen girişleri uyarır |
 | R7 | Proje kimliği yanlış eşleşir (fork, birden çok remote, remote'suz repo) | Orta | Düşük | `origin` remote'u önceliklidir; yoksa repo kökü; `cestafet doctor` ile çözümlenen kimliği göstermek |
 
 ## 6. Bağımlılıklar
@@ -85,7 +92,7 @@ MCP çağrısında hook'un yazdığı geçici bir işaret dosyası kullanılır.
 
 ## 7. Önerilen sıra
 
-1. **Spike (yarım gün):** B1, B2, B3 ve B7. Atılacak deneme kodu; sonuçlar `docs/spikes.md` dosyasına yazılır.
+1. **Spike (yarım gün):** B1, B2, B3, B7 ve B8. Atılacak deneme kodu; sonuçlar `docs/spikes.md` dosyasına yazılır.
 2. **Tasarım güncellemesi:** Spike sonuçları `design.md` dosyasına işlenir.
 3. **Plan:** `plan.md`, TDD sırasıyla: store → identity → hooks → MCP araçları → plugin paketi → yayın.
 4. **MVP:** S1–S4 (P0).
