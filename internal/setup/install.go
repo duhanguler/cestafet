@@ -46,8 +46,8 @@ func profileEnv(env []string, p Profile) []string {
 	return out
 }
 
-// Install adds the marketplace and installs the plugin into a profile. An
-// already-present marketplace or plugin is not an error.
+// Install adds the marketplace and installs the plugin into a profile; an
+// already-installed plugin is updated to the marketplace's version.
 func Install(ctx context.Context, run Runner, p Profile, marketplace string) error {
 	if out, err := run(ctx, p, "plugin", "marketplace", "add", marketplace); err != nil && !alreadyThere(out) {
 		return fmt.Errorf("%s: add marketplace: %v: %s", p.Name(), err, out)
@@ -55,8 +55,16 @@ func Install(ctx context.Context, run Runner, p Profile, marketplace string) err
 	if out, err := run(ctx, p, "plugin", "marketplace", "update", MarketplaceName); err != nil {
 		return fmt.Errorf("%s: update marketplace: %v: %s", p.Name(), err, out)
 	}
-	if out, err := run(ctx, p, "plugin", "install", PluginName+"@"+MarketplaceName); err != nil && !alreadyThere(out) {
+	id := PluginName + "@" + MarketplaceName
+	out, err := run(ctx, p, "plugin", "install", id)
+	if err == nil {
+		return nil
+	}
+	if !alreadyThere(out) {
 		return fmt.Errorf("%s: install plugin: %v: %s", p.Name(), err, out)
+	}
+	if out, err := run(ctx, p, "plugin", "update", id); err != nil {
+		return fmt.Errorf("%s: update plugin: %v: %s", p.Name(), err, out)
 	}
 	return nil
 }
@@ -70,15 +78,6 @@ func Uninstall(ctx context.Context, run Runner, p Profile) error {
 		return fmt.Errorf("%s: remove marketplace: %v: %s", p.Name(), err, out)
 	}
 	return nil
-}
-
-// Installed reports whether the plugin is listed in a profile.
-func Installed(ctx context.Context, run Runner, p Profile) (bool, error) {
-	out, err := run(ctx, p, "plugin", "list")
-	if err != nil {
-		return false, fmt.Errorf("%s: list plugins: %v: %s", p.Name(), err, out)
-	}
-	return strings.Contains(out, PluginName+"@"+MarketplaceName), nil
 }
 
 func alreadyThere(out string) bool {

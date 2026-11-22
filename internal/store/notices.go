@@ -152,25 +152,53 @@ func scanNotices(rows *sql.Rows) ([]Notice, error) {
 	return out, rows.Err()
 }
 
-// TakePending returns the notices not yet delivered to the session and marks
+// noticeOverhead estimates the envelope a rendered notice adds around its body.
+const noticeOverhead = 320
+
+// TakePending returns all notices not yet delivered to the session and marks
 // them delivered.
 func (s *Store) TakePending(sessionID string) ([]Notice, error) {
+	notices, _, err := s.TakePendingWithin(sessionID, 0)
+	return notices, err
+}
+
+// TakePendingWithin returns the oldest undelivered notices whose rendered size
+// fits in maxBytes (0 means no limit), marks only those delivered and reports
+// how many are left for a later hook. At least one notice is always returned
+// when any is pending, so a single large notice can never stall delivery.
+func (s *Store) TakePendingWithin(sessionID string, maxBytes int) ([]Notice, int, error) {
 	rows, err := s.db.Query(`SELECT `+noticeCols+` FROM deliveries d
 		JOIN notices n ON n.id = d.notice_id
 		LEFT JOIN prompts p ON p.id = n.prompt_id
 		WHERE d.to_session = ? AND d.delivered_at IS NULL ORDER BY n.id`, sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("pending notices: %w", err)
+		return nil, 0, fmt.Errorf("pending notices: %w", err)
 	}
 	notices, err := scanNotices(rows)
 	if err != nil || len(notices) == 0 {
-		return notices, err
+		return notices, 0, err
 	}
+	take := fitting(notices, maxBytes)
 	if _, err := s.db.Exec(`UPDATE deliveries SET delivered_at = ? WHERE to_session = ? AND delivered_at IS NULL
-		AND notice_id <= ?`, s.unix(), sessionID, notices[len(notices)-1].ID); err != nil {
-		return nil, fmt.Errorf("mark delivered: %w", err)
+		AND notice_id <= ?`, s.unix(), sessionID, take[len(take)-1].ID); err != nil {
+		return nil, 0, fmt.Errorf("mark delivered: %w", err)
 	}
-	return notices, nil
+	return take, len(notices) - len(take), nil
+}
+
+// fitting returns the longest prefix of notices within maxBytes, never empty.
+func fitting(notices []Notice, maxBytes int) []Notice {
+	if maxBytes <= 0 {
+		return notices
+	}
+	size := 0
+	for i, n := range notices {
+		size += len(n.Body) + len(n.PromptText) + noticeOverhead
+		if size > maxBytes && i > 0 {
+			return notices[:i]
+		}
+	}
+	return notices
 }
 
 // Received lists notices delivered or pending for the session, newest first.

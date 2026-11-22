@@ -153,3 +153,31 @@ func TestClearKeepsCoordinatorRole(t *testing.T) {
 		t.Fatalf("old session status = %s", old.Status)
 	}
 }
+
+func TestLargeBacklogIsSplitAcrossHooks(t *testing.T) {
+	app := newApp(t)
+	fire(t, app, "session-start", `{"session_id":"coord","cwd":"/w/app"}`, 1)
+	fire(t, app, "session-start", `{"session_id":"busy","cwd":"/w/app"}`, 2)
+	coord, _ := app.Store.Get("coord")
+	for i := 0; i < 5; i++ {
+		body := strings.Repeat(string(rune('a'+i)), store.MaxBodyBytes)
+		if _, _, err := app.Store.Send(store.NewNotice{From: coord, Origin: store.OriginAgent, Body: body}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seen := 0
+	for round := 0; round < 5 && seen < 5; round++ {
+		ctx := fire(t, app, "post-tool", `{"session_id":"busy","cwd":"/w/app"}`, 2)
+		if len(ctx) > core.MaxInjectBytes+1024 {
+			t.Fatalf("round %d injected %d bytes", round, len(ctx))
+		}
+		n := strings.Count(ctx, "</cestafet-notice>")
+		seen += n
+		if seen < 5 && !strings.Contains(ctx, "more notice") {
+			t.Fatalf("round %d: no hint that more notices follow", round)
+		}
+	}
+	if seen != 5 {
+		t.Fatalf("delivered %d notices, want 5", seen)
+	}
+}

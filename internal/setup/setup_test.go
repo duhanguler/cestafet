@@ -102,3 +102,21 @@ func TestInstallReportsRealFailure(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestInstallUpdatesAnAlreadyInstalledPlugin(t *testing.T) {
+	var calls []string
+	run := func(_ context.Context, p Profile, args ...string) (string, error) {
+		c := strings.Join(args, " ")
+		calls = append(calls, c)
+		if c == "plugin install cestafet@cestafet" {
+			return "Plugin cestafet@cestafet is already installed", errors.New("exit 1")
+		}
+		return "ok", nil
+	}
+	if err := Install(context.Background(), run, Profile{Dir: "/h/.claude-x"}, "orkono/cestafet"); err != nil {
+		t.Fatal(err)
+	}
+	if last := calls[len(calls)-1]; last != "plugin update cestafet@cestafet" {
+		t.Fatalf("calls = %v", calls)
+	}
+}
