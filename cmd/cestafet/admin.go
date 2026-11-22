@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -160,15 +161,36 @@ func runDoctor(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("Profiles:")
+	self, _ := os.Executable()
+	if resolved, err := filepath.EvalSymlinks(self); err == nil {
+		self = resolved
+	}
+	onPath, _ := exec.LookPath("cestafet")
+	if resolved, err := filepath.EvalSymlinks(onPath); err == nil {
+		onPath = resolved
+	}
+	fmt.Printf("Binary:\n  version     %s\n  this        %s\n  on PATH     %s\n\nProfiles:\n",
+		version, tilde(self), orNone(tilde(onPath)))
+	plugins := map[string]setup.PluginInfo{}
 	for _, p := range found {
 		state := "not installed"
-		if ok, err := setup.Installed(ctx, setup.ClaudeRunner, p); err != nil {
+		info, err := setup.PluginState(ctx, setup.ClaudeRunner, p)
+		switch {
+		case err != nil:
 			state = "unknown (" + firstLine(err.Error()) + ")"
-		} else if ok {
-			state = "installed"
+		case info.Installed && info.Enabled:
+			state = "installed " + info.Version
+		case info.Installed:
+			state = "installed " + info.Version + ", disabled"
 		}
+		plugins[tilde(p.Dir)] = info
 		fmt.Printf("  %-28s %s\n", tilde(p.Dir), state)
+	}
+	if warnings := setup.VersionWarnings(version, self, onPath, plugins); len(warnings) > 0 {
+		fmt.Println("\nWarnings:")
+		for _, w := range warnings {
+			fmt.Println("  ! " + w)
+		}
 	}
 	app, err := core.Open()
 	if err != nil {
@@ -185,6 +207,13 @@ func runDoctor(ctx context.Context) error {
 	fmt.Printf("\nThis directory:\n  repository  %s\n  project     %s\n  database    %s\n  projects    %s\n",
 		key, project, tilde(db), tilde(app.ProjectsPath))
 	return nil
+}
+
+func orNone(s string) string {
+	if s == "" {
+		return "(not found)"
+	}
+	return s
 }
 
 func firstLine(s string) string {
