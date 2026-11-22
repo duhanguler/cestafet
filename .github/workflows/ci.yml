@@ -19,3 +19,21 @@ jobs:
       - run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
       - run: go vet ./...
       - run: go test -race ./...
+
+  # Windows support is in progress (docs/windows-plan.md): the build and vet must pass; the test
+  # suite still assumes Unix paths, so its result is reported without failing the run.
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: go build ./...
+      - run: go vet ./...
+      - run: GOARCH=arm64 go build -o /dev/null ./cmd/cestafet
+      - run: go test ./...
+        continue-on-error: true

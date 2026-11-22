@@ -24,6 +24,9 @@ Usage:
                            list recent notices of a project
   cestafet send <project> <text | ->
                            send a notice from the terminal (origin=agent)
+  cestafet diag [cli|hook|mcp]
+                           record what this process sees (ancestors, ids, paths) for
+                           platform debugging; hook reads the payload, mcp then serves MCP
   cestafet mcp             run the MCP server (started by the plugin)
   cestafet hook <event>    run a hook handler (started by the plugin):
                            session-start | prompt | pre-tool | post-tool | session-end
@@ -62,6 +65,8 @@ func run(ctx context.Context, args []string) error {
 		return runNotices(rest)
 	case "send":
 		return runSend(rest)
+	case "diag":
+		return runDiag(ctx, rest)
 	case "version", "--version", "-v":
 		fmt.Println("cestafet", appVersion())
 		return nil
