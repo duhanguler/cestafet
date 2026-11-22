@@ -32,15 +32,22 @@ type Notice struct {
 	Body        string    `json:"body"`
 	CreatedAt   time.Time `json:"created_at"`
 	AckedAt     time.Time `json:"acked_at,omitzero"`
+	Kind        string    `json:"kind"`
+	ExpiresAt   time.Time `json:"expires_at,omitzero"`
+	LiftedAt    time.Time `json:"lifted_at,omitzero"`
+	Lifts       int64     `json:"lifts,omitempty"` // the rule this notice lifted
 }
 
 // NewNotice describes a notice to send.
 type NewNotice struct {
-	From     Session
-	Origin   string
-	PromptID int64 // 0 when not backed by a user prompt
-	Body     string
-	To       []string // explicit recipients; empty = every other live session of the project
+	From      Session
+	Origin    string
+	PromptID  int64 // 0 when not backed by a user prompt
+	Body      string
+	To        []string      // explicit recipients; empty = every other live session of the project
+	Kind      string        // KindInfo (default) or KindRule
+	ExpiresIn time.Duration // rules only; 0 = until lifted
+	lifts     int64
 }
 
 // Send stores a notice and creates a pending delivery for each recipient.
@@ -56,6 +63,10 @@ func (s *Store) Send(n NewNotice) (int64, []string, error) {
 	if n.Origin != OriginUser && n.Origin != OriginAgent {
 		return 0, nil, fmt.Errorf("invalid origin %q", n.Origin)
 	}
+	kind, expiresAt, err := s.ruleFields(n)
+	if err != nil {
+		return 0, nil, err
+	}
 	recipients, err := s.recipients(n)
 	if err != nil {
 		return 0, nil, err
@@ -70,9 +81,14 @@ func (s *Store) Send(n NewNotice) (int64, []string, error) {
 	if n.PromptID > 0 {
 		promptID = n.PromptID
 	}
-	res, err := tx.Exec(`INSERT INTO notices (project, from_session, from_profile, from_role, origin, prompt_id, body, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		n.From.Project, n.From.ID, n.From.Profile, n.From.Role, n.Origin, promptID, body, s.unix())
+	var lifts any
+	if n.lifts > 0 {
+		lifts = n.lifts
+	}
+	res, err := tx.Exec(`INSERT INTO notices (project, from_session, from_profile, from_role, origin, prompt_id, body,
+		created_at, kind, expires_at, lifts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		n.From.Project, n.From.ID, n.From.Profile, n.From.Role, n.Origin, promptID, body, s.unix(),
+		kind, expiresAt, lifts)
 	if err != nil {
 		return 0, nil, fmt.Errorf("insert notice: %w", err)
 	}
@@ -119,37 +135,51 @@ func (s *Store) recipients(n NewNotice) ([]string, error) {
 }
 
 // Backfill gives a newly registered session the project's recent notices that
-// it would otherwise have missed.
+// it would otherwise have missed, and every active rule regardless of age.
 func (s *Store) Backfill(sessionID, project string) error {
+	now := s.unix()
 	_, err := s.db.Exec(`INSERT OR IGNORE INTO deliveries (notice_id, to_session)
-		SELECT id, ? FROM notices WHERE project = ? AND from_session != ? AND created_at >= ?`,
-		sessionID, project, sessionID, s.unix()-int64(BackfillWindow.Seconds()))
+		SELECT id, ? FROM notices n WHERE project = ? AND from_session != ?
+		AND ((kind = 'info' AND created_at >= ?) OR (kind = 'rule' AND `+activeRule+`))`,
+		sessionID, project, sessionID, now-int64(BackfillWindow.Seconds()), now)
 	if err != nil {
 		return fmt.Errorf("backfill notices: %w", err)
 	}
 	return nil
 }
 
-const noticeCols = `n.id, n.project, n.from_session, n.from_profile, n.from_role, n.origin,
-	COALESCE(p.text, ''), n.body, n.created_at, COALESCE(d.acked_at, 0)`
+// noticeBase selects a notice (alias n) with its prompt text (alias p).
+const noticeBase = `n.id, n.project, n.from_session, n.from_profile, n.from_role, n.origin,
+	COALESCE(p.text, ''), n.body, n.created_at, n.kind, COALESCE(n.expires_at, 0),
+	COALESCE(n.lifted_at, 0), COALESCE(n.lifts, 0)`
+
+// noticeCols adds the delivery's ack time (alias d).
+const noticeCols = noticeBase + `, COALESCE(d.acked_at, 0)`
 
 func scanNotices(rows *sql.Rows) ([]Notice, error) {
 	defer rows.Close()
 	var out []Notice
 	for rows.Next() {
 		var n Notice
-		var created, acked int64
+		var created, expires, lifted, acked int64
 		if err := rows.Scan(&n.ID, &n.Project, &n.FromSession, &n.FromProfile, &n.FromRole, &n.Origin,
-			&n.PromptText, &n.Body, &created, &acked); err != nil {
+			&n.PromptText, &n.Body, &created, &n.Kind, &expires, &lifted, &n.Lifts, &acked); err != nil {
 			return nil, fmt.Errorf("scan notice: %w", err)
 		}
 		n.CreatedAt = time.Unix(created, 0)
-		if acked > 0 {
-			n.AckedAt = time.Unix(acked, 0)
-		}
+		n.ExpiresAt = unixOrZero(expires)
+		n.LiftedAt = unixOrZero(lifted)
+		n.AckedAt = unixOrZero(acked)
 		out = append(out, n)
 	}
 	return out, rows.Err()
+}
+
+func unixOrZero(sec int64) time.Time {
+	if sec <= 0 {
+		return time.Time{}
+	}
+	return time.Unix(sec, 0)
 }
 
 // noticeOverhead estimates the envelope a rendered notice adds around its body.
@@ -272,8 +302,7 @@ func (s *Store) Status(noticeID int64) ([]Delivery, error) {
 
 // ProjectNotices lists a project's most recent notices, newest first.
 func (s *Store) ProjectNotices(project string, limit int) ([]Notice, error) {
-	rows, err := s.db.Query(`SELECT n.id, n.project, n.from_session, n.from_profile, n.from_role, n.origin,
-			COALESCE(p.text, ''), n.body, n.created_at, 0
+	rows, err := s.db.Query(`SELECT `+noticeBase+`, 0
 		FROM notices n LEFT JOIN prompts p ON p.id = n.prompt_id
 		WHERE n.project = ? ORDER BY n.id DESC LIMIT ?`, project, limit)
 	if err != nil {

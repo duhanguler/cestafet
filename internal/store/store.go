@@ -68,6 +68,44 @@ CREATE TABLE IF NOT EXISTS deliveries (
 CREATE INDEX IF NOT EXISTS deliveries_pending ON deliveries(to_session, delivered_at);
 `
 
+// migrations upgrade a database step by step; PRAGMA user_version records the
+// last step applied. Index i is the step from version i to i+1. The base schema
+// above stays the v0.1.0 one, so new and old databases take the same path.
+var migrations = []string{
+	// v0.2: standing rules.
+	`ALTER TABLE notices ADD COLUMN kind TEXT NOT NULL DEFAULT 'info';
+	ALTER TABLE notices ADD COLUMN expires_at INTEGER;
+	ALTER TABLE notices ADD COLUMN lifted_at INTEGER;
+	ALTER TABLE notices ADD COLUMN lifted_by TEXT;
+	ALTER TABLE notices ADD COLUMN lifts INTEGER;
+	CREATE INDEX IF NOT EXISTS notices_rules ON notices(project, kind, lifted_at);`,
+}
+
+func migrate(db *sql.DB) error {
+	var version int
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		return fmt.Errorf("read schema version: %w", err)
+	}
+	for v := version; v < len(migrations); v++ {
+		tx, err := db.Begin()
+		if err != nil {
+			return fmt.Errorf("migrate to %d: %w", v+1, err)
+		}
+		if _, err := tx.Exec(migrations[v]); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("migrate to %d: %w", v+1, err)
+		}
+		if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, v+1)); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("migrate to %d: %w", v+1, err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("migrate to %d: %w", v+1, err)
+		}
+	}
+	return nil
+}
+
 // DefaultPath returns the database location: $XDG_DATA_HOME/cestafet/bus.db,
 // falling back to ~/.local/share/cestafet/bus.db.
 func DefaultPath() (string, error) {
@@ -105,6 +143,10 @@ func Open(path string) (*Store, error) {
 	if _, err := db.Exec(schema); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("apply schema: %w", err)
+	}
+	if err := migrate(db); err != nil {
+		_ = db.Close()
+		return nil, err
 	}
 	return &Store{db: db, now: time.Now}, nil
 }
