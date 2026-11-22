@@ -1,5 +1,20 @@
 # Claude plugin directory submission
 
+> **Status (2026-11-22): blocked.** The portal's validation of `main @ 083737b` reports two
+> blocking findings: command hooks and local MCP servers are accepted only from **Verified
+> organizations**. cestafet consists of exactly those (hooks register sessions and deliver
+> notices; the local MCP server provides the tools), so removing them is not an option. Path:
+> request Verified status in the portal (**Submissions → Help and appeals → Request verified**;
+> needs a paid plan and a proven domain, decided by a person at Anthropic). Until then the plugin
+> is distributed through its own marketplace (`cestafet setup`). Community report of the same
+> gate, with no Anthropic reply so far:
+> <https://github.com/anthropics/claude-plugins-official/issues/7024>.
+>
+> Other findings in that run: a policy hold because the MCP command (`cestafet` from `PATH`)
+> cannot be read; a warning that the `PreToolUse` hook's decision cannot be inspected (it only
+> ever returns `ask`); informational notes that the portal prefers hook and MCP commands started
+> as a file the plugin ships (`node`, `python3`, `bash`, `sh`).
+
 Prepared answers for the developer portal at <https://claude.ai/directory/manage>
 (**Submit new → Plugin bundle**). Submitting needs a paid claude.ai plan; the maintainer submits
 from their own account.
