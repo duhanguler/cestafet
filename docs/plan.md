@@ -15,7 +15,7 @@ Tracking: GitHub milestones `v0.1.1` and `v0.2.0`.
 | P6 | `cestafet doctor`: binary version vs. installed plugin version, PATH visible to Claude Code | Claude | Catches the "old binary on PATH" case seen after v0.1.0. |
 | P7 | Announcement draft (Show HN, r/ClaudeAI, MCP community) | Claude | After P2 and P5. |
 
-## v0.2.0 — standing rules, push, guard
+## v0.2.0 — standing rules, push, guard (rules and guard shipped in v0.2.0; C0–C2 moved to v0.3.0)
 
 Design: [v0.2-design.md](v0.2-design.md).
 
