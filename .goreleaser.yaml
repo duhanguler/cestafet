@@ -26,7 +26,15 @@ homebrew_casks:
       token: '{{ .Env.HOMEBREW_TAP_TOKEN }}'
     # Without the token (forks, local runs), releases skip the tap instead of failing.
     skip_upload: '{{ if not (index .Env "HOMEBREW_TAP_TOKEN") }}true{{ end }}'
+    # The binary is not signed or notarized yet; without this Gatekeeper kills it
+    # ("Apple could not verify cestafet"). The user chose to install it from this tap.
+    # `postflight` rather than the newer `postflight_steps`: older Homebrew versions
+    # do not know the latter, and current ones only print a deprecation warning.
+    custom_block: |
+      postflight do
+        if OS.mac?
+          system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/cestafet"]
+        end
+      end
     caveats: |
       Next: run `cestafet setup` to install the Claude Code plugin into your profiles.
-      If macOS blocks the unsigned binary, run:
-        xattr -dr com.apple.quarantine "$(brew --prefix)/bin/cestafet"
