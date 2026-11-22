@@ -57,7 +57,7 @@ func runMCP(ctx context.Context) error {
 		return err
 	}
 	defer app.Close()
-	err = mcpserver.New(app, identity.ClaudePID()).Run(ctx, version)
+	err = mcpserver.New(app, identity.ClaudePID()).Run(ctx, appVersion())
 	if err == io.EOF || ctx.Err() != nil {
 		return nil
 	}

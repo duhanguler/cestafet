@@ -10,9 +10,6 @@ import (
 	"syscall"
 )
 
-// version is set at build time with -ldflags "-X main.version=...".
-var version = "dev"
-
 const usage = `cestafet — notices between AI coding sessions on one machine
 
 Usage:
@@ -66,7 +63,7 @@ func run(ctx context.Context, args []string) error {
 	case "send":
 		return runSend(rest)
 	case "version", "--version", "-v":
-		fmt.Println("cestafet", version)
+		fmt.Println("cestafet", appVersion())
 		return nil
 	case "help", "--help", "-h":
 		fmt.Print(usage)
