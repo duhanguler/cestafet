@@ -170,7 +170,7 @@ func runDoctor(ctx context.Context) error {
 		onPath = resolved
 	}
 	fmt.Printf("Binary:\n  version     %s\n  this        %s\n  on PATH     %s\n\nProfiles:\n",
-		version, tilde(self), orNone(tilde(onPath)))
+		appVersion(), tilde(self), orNone(tilde(onPath)))
 	plugins := map[string]setup.PluginInfo{}
 	for _, p := range found {
 		state := "not installed"
@@ -186,7 +186,7 @@ func runDoctor(ctx context.Context) error {
 		plugins[tilde(p.Dir)] = info
 		fmt.Printf("  %-28s %s\n", tilde(p.Dir), state)
 	}
-	if warnings := setup.VersionWarnings(version, self, onPath, plugins); len(warnings) > 0 {
+	if warnings := setup.VersionWarnings(appVersion(), self, onPath, plugins); len(warnings) > 0 {
 		fmt.Println("\nWarnings:")
 		for _, w := range warnings {
 			fmt.Println("  ! " + w)

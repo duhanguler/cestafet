@@ -108,8 +108,8 @@ func TestInstallUpdatesAnAlreadyInstalledPlugin(t *testing.T) {
 	run := func(_ context.Context, p Profile, args ...string) (string, error) {
 		c := strings.Join(args, " ")
 		calls = append(calls, c)
-		if c == "plugin install cestafet@cestafet" {
-			return "Plugin cestafet@cestafet is already installed", errors.New("exit 1")
+		if c == "plugin install cestafet@cestafet" { // claude exits 0 here (seen with 2.1.330)
+			return `✔ Plugin "cestafet@cestafet" is already installed (scope: user) — the marketplace now offers 0.1.1 (installed: 0.1.0); run ` + "`claude plugin update cestafet@cestafet`", nil
 		}
 		return "ok", nil
 	}

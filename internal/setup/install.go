@@ -56,12 +56,14 @@ func Install(ctx context.Context, run Runner, p Profile, marketplace string) err
 		return fmt.Errorf("%s: update marketplace: %v: %s", p.Name(), err, out)
 	}
 	id := PluginName + "@" + MarketplaceName
+	// An already-installed plugin is reported with or without a non-zero exit
+	// (claude 2.1.330 exits 0); either way it needs an explicit update.
 	out, err := run(ctx, p, "plugin", "install", id)
-	if err == nil {
-		return nil
-	}
 	if !alreadyThere(out) {
-		return fmt.Errorf("%s: install plugin: %v: %s", p.Name(), err, out)
+		if err != nil {
+			return fmt.Errorf("%s: install plugin: %v: %s", p.Name(), err, out)
+		}
+		return nil
 	}
 	if out, err := run(ctx, p, "plugin", "update", id); err != nil {
 		return fmt.Errorf("%s: update plugin: %v: %s", p.Name(), err, out)
