@@ -45,9 +45,13 @@ baton — with a **c** for Claude, Codex, ChatGPT.
 ## Install
 
 ```bash
-go install github.com/orkono/cestafet/cmd/cestafet@latest   # or download a release binary
+brew install --cask orkono/tap/cestafet                      # macOS / Linux, from v0.1.3
+# or: go install github.com/orkono/cestafet/cmd/cestafet@latest
 cestafet setup
 ```
+
+The binaries are not yet signed or notarized by Apple; the Homebrew cask removes macOS's
+quarantine flag after install so Gatekeeper does not block it.
 
 `cestafet setup` finds every Claude Code profile on the machine (`~/.claude`, `~/.claude-*`, and
 every `CLAUDE_CONFIG_DIR` in your shell rc files and wrapper scripts), lets you choose, and
