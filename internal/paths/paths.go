@@ -54,10 +54,10 @@ var gitBashDrive = regexp.MustCompile(`^/([A-Za-z])(/|$)`)
 var driveVolume = regexp.MustCompile(`^([A-Za-z]):`)
 
 func canon(p string, st style) string {
+	if p == "" {
+		return "" // no path (e.g. outside git) is not the current directory
+	}
 	if st == posix {
-		if p == "" {
-			return ""
-		}
 		return path.Clean(p)
 	}
 	s := strings.ReplaceAll(p, `\`, "/")

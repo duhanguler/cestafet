@@ -22,6 +22,7 @@ func TestCanon(t *testing.T) {
 		`C:\`:                     `C:\`,
 		`\\server\share\dir\..\x`: `\\server\share\x`,
 		`D:\Projects\App`:         `D:\Projects\App`, // spelling kept, only compared case-insensitively
+		"":                        "",                // no path (e.g. no git root) stays empty
 	}
 	for in, want := range win {
 		if got := canon(in, windows); got != want {
