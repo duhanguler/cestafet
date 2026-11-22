@@ -84,7 +84,7 @@ cestafet doctor               binary and plugin versions, PATH, identity of this
 
 ## Status
 
-v0.1.1. Claude Code only; push delivery to idle sessions, notice expiry and a Codex adapter
+v0.1.2. Claude Code only; push delivery to idle sessions, notice expiry and a Codex adapter
 are planned; see [docs/roadmap.md](docs/roadmap.md). Design notes: [docs/design.md](docs/design.md).
 
 ## License
