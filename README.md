@@ -8,6 +8,8 @@ You run several Claude Code sessions at once — different terminals, different 
 (`CLAUDE_CONFIG_DIR`), different repositories of the same product. cestafet lets them see each
 other per project, and lets you tell one of them something that every other session then knows:
 
+<p align="center"><img src="assets/demo.gif" alt="Two Claude Code sessions on different profiles: the coordinator is told to announce that testing started; the other session, busy running tests, receives the notice and acknowledges it"></p>
+
 ```
 you (coordinator session):  tell the other sessions: testing has started, do not deploy to staging
 
@@ -77,12 +79,12 @@ is respected in their next steps; an agent-origin notice is weighed, never blind
 cestafet sessions [project]   live sessions of a project
 cestafet notices [project]    recent notices of a project
 cestafet send <project> <text>  send a notice from the terminal (origin=agent)
-cestafet doctor               profiles, plugin state, identity of this directory
+cestafet doctor               binary and plugin versions, PATH, identity of this directory
 ```
 
 ## Status
 
-v0.1.0. Claude Code only; push delivery to idle sessions, notice expiry and a Codex adapter
+v0.1.1. Claude Code only; push delivery to idle sessions, notice expiry and a Codex adapter
 are planned; see [docs/roadmap.md](docs/roadmap.md). Design notes: [docs/design.md](docs/design.md).
 
 ## License
