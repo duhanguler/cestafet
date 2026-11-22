@@ -135,6 +135,7 @@ func (s *Server) register(srv *mcp.Server) {
 
 	s.registerProjectTools(srv)
 	s.registerNoticeTools(srv)
+	s.registerRuleTools(srv)
 }
 
 type projectOut struct {

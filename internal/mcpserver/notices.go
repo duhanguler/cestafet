@@ -26,6 +26,8 @@ type noticeView struct {
 	Body      string `json:"body"`
 	CreatedAt string `json:"created_at"`
 	Acked     bool   `json:"acked"`
+	Kind      string `json:"kind"`
+	Active    bool   `json:"active_rule,omitempty"`
 }
 
 func (s *Server) registerNoticeTools(srv *mcp.Server) {
@@ -66,31 +68,39 @@ func (s *Server) registerNoticeTools(srv *mcp.Server) {
 		Body           string   `json:"body" jsonschema:"the notice, written for the other sessions, at most 4096 bytes"`
 		To             []string `json:"to,omitempty" jsonschema:"session ids to address; omit to reach every other session of the project"`
 		OnBehalfOfUser bool     `json:"on_behalf_of_user" jsonschema:"true only when the user asked in this turn to tell the other sessions; false for your own initiative"`
+		Standing       bool     `json:"standing,omitempty" jsonschema:"true for a rule that stays in force until lifted, e.g. 'no deploys to staging while testing', 'from now on ...'; false for one-off news"`
+		ExpiresIn      string   `json:"expires_in,omitempty" jsonschema:"standing rules only: end it automatically after this long, e.g. 2h or 1d (max 30d); omit to keep it until lifted"`
 	}
 	mcp.AddTool(srv, &mcp.Tool{Name: "notify",
 		Description: "Send a notice to the other sessions of this project (every repository and profile in it). " +
 			"Use when the user asks to tell, notify or inform the other sessions, e.g. 'tell the others testing " +
-			"started, no deploys to staging'. Sessions receive it at their next prompt or tool call."},
+			"started, no deploys to staging'. Sessions receive it at their next prompt or tool call. Set standing " +
+			"for a rule that must hold until lifted; sessions that start later still receive an active rule."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in notifyIn) (*mcp.CallToolResult, sentOut, error) {
 			me, err := s.self()
 			if err != nil {
 				return nil, sentOut{}, err
 			}
-			n := store.NewNotice{From: me, Origin: store.OriginAgent, Body: in.Body, To: in.To}
-			note := ""
-			if in.OnBehalfOfUser {
-				if pid := s.recentPrompt(me.ID); pid > 0 {
-					n.Origin, n.PromptID = store.OriginUser, pid
-				} else {
-					note = "no recent user prompt was recorded for this session, so the notice is labelled origin=agent"
-				}
+			expires, err := parseExpiry(in.ExpiresIn)
+			if err != nil {
+				return nil, sentOut{}, err
 			}
+			n := store.NewNotice{From: me, Body: in.Body, To: in.To, ExpiresIn: expires}
+			if in.Standing || expires > 0 {
+				n.Kind = store.KindRule
+			}
+			var note string
+			n.Origin, n.PromptID, note = s.origin(me, in.OnBehalfOfUser)
 			id, to, err := s.app.Store.Send(n)
 			if err != nil {
 				return nil, sentOut{}, err
 			}
 			if len(to) == 0 {
-				note = strings.TrimSpace(note + "; no other session is on this project right now — sessions that start within 24h will still receive it")
+				later := "sessions that start within 24h will still receive it"
+				if n.Kind == store.KindRule {
+					later = "sessions that start later receive it for as long as the rule is in force"
+				}
+				note = strings.TrimSpace(note + "; no other session is on this project right now — " + later)
 			}
 			return nil, sentOut{NoticeID: id, Origin: n.Origin, Recipients: to, Note: strings.TrimPrefix(note, "; ")}, nil
 		})
@@ -116,7 +126,9 @@ func (s *Server) registerNoticeTools(srv *mcp.Server) {
 			for _, n := range list {
 				out.Notices = append(out.Notices, noticeView{ID: n.ID, From: n.FromProfile + " (" + n.FromRole + ")",
 					Origin: n.Origin, Request: n.PromptText, Body: n.Body,
-					CreatedAt: n.CreatedAt.UTC().Format(time.RFC3339), Acked: !n.AckedAt.IsZero()})
+					CreatedAt: n.CreatedAt.UTC().Format(time.RFC3339), Acked: !n.AckedAt.IsZero(), Kind: n.Kind,
+					Active: n.Kind == store.KindRule && n.LiftedAt.IsZero() &&
+						(n.ExpiresAt.IsZero() || n.ExpiresAt.After(time.Now()))})
 			}
 			return nil, out, nil
 		})

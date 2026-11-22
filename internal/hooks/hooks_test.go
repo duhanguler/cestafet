@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -179,5 +180,33 @@ func TestLargeBacklogIsSplitAcrossHooks(t *testing.T) {
 	}
 	if seen != 5 {
 		t.Fatalf("delivered %d notices, want 5", seen)
+	}
+}
+
+func TestOrientationListsActiveRules(t *testing.T) {
+	app := newApp(t)
+	fire(t, app, "session-start", `{"session_id":"coord","cwd":"/w/app"}`, 1)
+	coord, _ := app.Store.Get("coord")
+	if _, _, err := app.Store.Send(store.NewNotice{From: coord, Origin: store.OriginAgent, Kind: store.KindRule,
+		Body: "No deploys to staging while testing."}); err != nil {
+		t.Fatal(err)
+	}
+	lifted, _, _ := app.Store.Send(store.NewNotice{From: coord, Origin: store.OriginAgent, Kind: store.KindRule,
+		Body: "Old freeze on main."})
+	if _, _, err := app.Store.Lift(lifted, coord, store.OriginAgent, 0, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, source := range []string{"startup", "compact"} {
+		ctx := fire(t, app, "session-start", `{"session_id":"s-`+source+`","cwd":"/w/app","source":"`+source+`"}`, 2)
+		if !strings.Contains(ctx, "Rules in force") || !strings.Contains(ctx, "No deploys to staging while testing.") {
+			t.Fatalf("%s: orientation lacks the active rule:\n%s", source, ctx)
+		}
+		if strings.Contains(ctx, "#"+strconv.FormatInt(lifted, 10)+" ") {
+			t.Fatalf("%s: lifted rule listed:\n%s", source, ctx)
+		}
+		if !strings.Contains(ctx, `kind="rule"`) && source == "startup" {
+			t.Fatalf("backfilled rule not marked as a rule:\n%s", ctx)
+		}
 	}
 }

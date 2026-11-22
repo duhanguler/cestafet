@@ -136,6 +136,22 @@ func TestBackfillGivesActiveRulesOfAnyAge(t *testing.T) {
 	}
 }
 
+func TestBackfillSkipsLiftNotices(t *testing.T) {
+	s := newStore(t)
+	coord := register(t, s, "coord", "proj")
+	rule := sendRule(t, s, coord, "freeze", 0)
+	if _, _, err := s.Lift(rule, coord, OriginUser, 0, "done"); err != nil {
+		t.Fatal(err)
+	}
+	register(t, s, "late", "proj")
+	if err := s.Backfill("late", "proj"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.TakePending("late"); len(got) != 0 {
+		t.Fatalf("late session got %+v", got)
+	}
+}
+
 func TestOpenMigratesV010Database(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "bus.db")
 	db, err := sql.Open("sqlite", "file:"+path)

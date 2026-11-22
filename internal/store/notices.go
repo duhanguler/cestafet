@@ -136,11 +136,13 @@ func (s *Store) recipients(n NewNotice) ([]string, error) {
 
 // Backfill gives a newly registered session the project's recent notices that
 // it would otherwise have missed, and every active rule regardless of age.
+// Lift notices are skipped: a session that never saw a rule needs no news of
+// its end.
 func (s *Store) Backfill(sessionID, project string) error {
 	now := s.unix()
 	_, err := s.db.Exec(`INSERT OR IGNORE INTO deliveries (notice_id, to_session)
 		SELECT id, ? FROM notices n WHERE project = ? AND from_session != ?
-		AND ((kind = 'info' AND created_at >= ?) OR (kind = 'rule' AND `+activeRule+`))`,
+		AND ((kind = 'info' AND lifts IS NULL AND created_at >= ?) OR (kind = 'rule' AND `+activeRule+`))`,
 		sessionID, project, sessionID, now-int64(BackfillWindow.Seconds()), now)
 	if err != nil {
 		return fmt.Errorf("backfill notices: %w", err)
