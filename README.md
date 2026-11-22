@@ -37,6 +37,9 @@ baton — with a **c** for Claude, Codex, ChatGPT.
 - **Delivery.** Notices are injected through hooks: at the next prompt (`UserPromptSubmit`) and —
   for sessions busy on their own — after their next tool call (`PostToolUse`), before they act again.
   Subagent tool calls never consume a notice; it waits for the main agent.
+- **Standing rules.** "No deploys to staging while testing" is kept as a rule: it stays in force
+  until lifted ("testing finished, deploys are allowed again") or until it expires, reaches
+  sessions that start later, and is listed to every session when it starts or compacts.
 - **Coordinator.** `/cestafet:coordinate` makes a session the project's coordinator and announces
   it to the others.
 - **Local only.** One Go binary, one SQLite file (`~/.local/share/cestafet/bus.db`, mode 0600),
