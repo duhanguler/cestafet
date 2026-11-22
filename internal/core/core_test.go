@@ -33,7 +33,7 @@ func newApp(t *testing.T) *App {
 
 func mustRegister(t *testing.T, a *App, id, cwd string, pid int) store.Session {
 	t.Helper()
-	s, _, err := a.Register(id, cwd, pid)
+	s, _, err := a.Register(id, cwd, identity.Proc{PID: pid})
 	if err != nil {
 		t.Fatalf("register %s: %v", id, err)
 	}

@@ -1,6 +1,9 @@
 package identity
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestNormalizeRemote(t *testing.T) {
 	resolve := func(alias string) string {
@@ -39,22 +42,35 @@ func TestProfileName(t *testing.T) {
 }
 
 func TestClaudeAncestor(t *testing.T) {
-	tree := map[int]struct {
-		ppid int
-		comm string
-	}{
-		40: {39, "/bin/bash"},
-		39: {38, "/Users/x/.local/bin/claude"},
-		38: {1, "zsh"},
+	t0 := time.Unix(1_800_000_000, 0)
+	tree := map[int]Proc{
+		// macOS: the hook's parent is claude.
+		40: {PID: 40, PPID: 39, Name: "/bin/bash"},
+		39: {PID: 39, PPID: 38, Name: "/Users/x/.local/bin/claude"},
+		38: {PID: 38, PPID: 1, Name: "zsh"},
+		// Windows, as measured: cestafet.exe < bash.exe < bash.exe < claude.exe.
+		70: {PID: 70, PPID: 71, Name: "cestafet.exe", Created: t0.Add(3 * time.Second)},
+		71: {PID: 71, PPID: 72, Name: "bash.exe", Created: t0.Add(2 * time.Second)},
+		72: {PID: 72, PPID: 73, Name: "bash.exe", Created: t0.Add(1 * time.Second)},
+		73: {PID: 73, PPID: 4, Name: "claude.exe", Created: t0},
+		// A reused pid: 81's recorded parent 82 is now a claude.exe started after 81.
+		81: {PID: 81, PPID: 82, Name: "bash.exe", Created: t0},
+		82: {PID: 82, PPID: 4, Name: "claude.exe", Created: t0.Add(time.Minute)},
 	}
-	info := func(pid int) (int, string, bool) {
-		n, ok := tree[pid]
-		return n.ppid, n.comm, ok
+	info := func(pid int) (Proc, bool) {
+		p, ok := tree[pid]
+		return p, ok
 	}
-	if got := claudeAncestor(40, info); got != 39 {
-		t.Fatalf("ancestor = %d, want 39", got)
+	if got := claudeAncestor(40, info); got.PID != 39 {
+		t.Fatalf("macOS ancestor = %+v, want 39", got)
 	}
-	if got := claudeAncestor(38, info); got != 0 {
-		t.Fatalf("ancestor without claude = %d, want 0", got)
+	if got := claudeAncestor(38, info); got.PID != 0 {
+		t.Fatalf("ancestor without claude = %+v, want none", got)
+	}
+	if got := claudeAncestor(71, info); got.PID != 73 || !got.Created.Equal(t0) {
+		t.Fatalf("Windows ancestor = %+v, want 73 created %v", got, t0)
+	}
+	if got := claudeAncestor(81, info); got.PID != 0 {
+		t.Fatalf("reused pid accepted: %+v", got)
 	}
 }

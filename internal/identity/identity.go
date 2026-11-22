@@ -113,41 +113,32 @@ func sshHostname(alias string) string {
 	return ""
 }
 
-// ClaudePID walks up the process tree from the current process and returns the
-// pid of the nearest ancestor whose executable is named "claude". Both the
-// hooks and the MCP server of one session descend from that process, so it
-// links them. It returns 0 when no such ancestor is found.
-func ClaudePID() int {
-	return claudeAncestor(os.Getppid(), processInfo)
+// Claude walks up the process tree from the current process and returns the
+// Claude Code process that owns it: claude, or claude.exe on Windows, where
+// hooks run through Git Bash (cestafet < bash < bash < claude.exe). The zero
+// Proc means no Claude Code ancestor was found.
+func Claude() Proc {
+	return claudeAncestor(os.Getppid(), procInfo)
 }
 
-func claudeAncestor(start int, info func(pid int) (ppid int, comm string, ok bool)) int {
+// ClaudePID is Claude().PID.
+func ClaudePID() int { return Claude().PID }
+
+func claudeAncestor(start int, info func(pid int) (Proc, bool)) Proc {
 	pid := start
+	var child Proc
 	for depth := 0; pid > 1 && depth < 32; depth++ {
-		ppid, comm, ok := info(pid)
+		p, ok := info(pid)
 		if !ok {
-			return 0
+			return Proc{}
 		}
-		if filepath.Base(comm) == "claude" {
-			return pid
+		if depth > 0 && !p.Created.IsZero() && !child.Created.IsZero() && p.Created.After(child.Created) {
+			return Proc{} // the recorded parent pid was reused by a younger process
 		}
-		pid = ppid
+		if IsClaude(p.Name) {
+			return p
+		}
+		child, pid = p, p.PPID
 	}
-	return 0
-}
-
-func processInfo(pid int) (int, string, bool) {
-	out, err := exec.Command("ps", "-o", "ppid=,comm=", "-p", strconv.Itoa(pid)).Output()
-	if err != nil {
-		return 0, "", false
-	}
-	fields := strings.Fields(strings.TrimSpace(string(out)))
-	if len(fields) < 2 {
-		return 0, "", false
-	}
-	ppid, err := strconv.Atoi(fields[0])
-	if err != nil {
-		return 0, "", false
-	}
-	return ppid, strings.Join(fields[1:], " "), true
+	return Proc{}
 }

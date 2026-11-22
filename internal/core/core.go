@@ -87,16 +87,24 @@ func (a *App) ancestorProject(cwd string) (string, error) {
 	return best, nil
 }
 
+// StartedMillis is the process creation time in unix ms, 0 when unknown.
+func StartedMillis(p identity.Proc) int64 {
+	if p.Created.IsZero() {
+		return 0
+	}
+	return p.Created.UnixMilli()
+}
+
 // Register records or refreshes a session from its id, cwd and owning claude pid.
 // A new session receives the project's recent notices.
-func (a *App) Register(sessionID, cwd string, claudePID int) (store.Session, bool, error) {
+func (a *App) Register(sessionID, cwd string, claude identity.Proc) (store.Session, bool, error) {
 	loc, project, err := a.Locate(cwd)
 	if err != nil {
 		return store.Session{}, false, err
 	}
 	repo, _ := loc.Member()
 	isNew, err := a.Store.Register(store.Session{
-		ID: sessionID, ClaudePID: claudePID, Profile: identity.Profile(),
+		ID: sessionID, ClaudePID: claude.PID, ClaudeStarted: StartedMillis(claude), Profile: identity.Profile(),
 		Project: project, Repo: repo, Cwd: cwd, Branch: loc.Repo.Branch,
 	})
 	if err != nil {

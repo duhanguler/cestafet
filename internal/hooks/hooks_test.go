@@ -33,7 +33,7 @@ func newApp(t *testing.T) *core.App {
 func fire(t *testing.T, app *core.App, event, payload string, pid int) string {
 	t.Helper()
 	var out bytes.Buffer
-	if err := Handle(app, event, strings.NewReader(payload), &out, pid); err != nil {
+	if err := Handle(app, event, strings.NewReader(payload), &out, identity.Proc{PID: pid}); err != nil {
 		t.Fatalf("%s: %v", event, err)
 	}
 	if out.Len() == 0 {
@@ -116,7 +116,7 @@ func TestBadInput(t *testing.T) {
 		{"post-tool", `{"cwd":"/w"}`},
 		{"post-tool", `not json`},
 	} {
-		if err := Handle(app, tc.event, strings.NewReader(tc.payload), &bytes.Buffer{}, 1); err == nil {
+		if err := Handle(app, tc.event, strings.NewReader(tc.payload), &bytes.Buffer{}, identity.Proc{PID: 1}); err == nil {
 			t.Errorf("%s %s: expected error", tc.event, tc.payload)
 		}
 	}
@@ -214,7 +214,7 @@ func TestOrientationListsActiveRules(t *testing.T) {
 func preTool(t *testing.T, app *core.App, payload string) output {
 	t.Helper()
 	var out bytes.Buffer
-	if err := Handle(app, "pre-tool", strings.NewReader(payload), &out, 2); err != nil {
+	if err := Handle(app, "pre-tool", strings.NewReader(payload), &out, identity.Proc{PID: 2}); err != nil {
 		t.Fatalf("pre-tool: %v", err)
 	}
 	var o output

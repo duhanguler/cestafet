@@ -26,7 +26,7 @@ func runHook(args []string) error {
 		return nil
 	}
 	defer app.Close()
-	if err := hooks.Handle(app, args[0], os.Stdin, os.Stdout, identity.ClaudePID()); err != nil {
+	if err := hooks.Handle(app, args[0], os.Stdin, os.Stdout, identity.Claude()); err != nil {
 		logHookError(args[0], err)
 	}
 	return nil
@@ -57,7 +57,7 @@ func runMCP(ctx context.Context) error {
 		return err
 	}
 	defer app.Close()
-	err = mcpserver.New(app, identity.ClaudePID()).Run(ctx, appVersion())
+	err = mcpserver.New(app, identity.Claude()).Run(ctx, appVersion())
 	if err == io.EOF || ctx.Err() != nil {
 		return nil
 	}

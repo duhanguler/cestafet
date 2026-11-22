@@ -10,6 +10,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/orkono/cestafet/internal/core"
+	"github.com/orkono/cestafet/internal/identity"
 	"github.com/orkono/cestafet/internal/projects"
 	"github.com/orkono/cestafet/internal/store"
 )
@@ -20,27 +21,27 @@ const userPromptWindow = 30 * time.Minute
 
 // Server serves the tools of one session.
 type Server struct {
-	app       *core.App
-	claudePID int
+	app    *core.App
+	claude identity.Proc
 }
 
-// New creates a server for the session owned by claudePID.
-func New(app *core.App, claudePID int) *Server {
-	return &Server{app: app, claudePID: claudePID}
+// New creates a server for the session owned by the given Claude Code process.
+func New(app *core.App, claude identity.Proc) *Server {
+	return &Server{app: app, claude: claude}
 }
 
 // self finds this server's session. It is resolved on every call because the
 // MCP server may start before the SessionStart hook has registered the session,
 // and /clear can give the same claude process a new session id.
 func (s *Server) self() (store.Session, error) {
-	if s.claudePID == 0 {
+	if s.claude.PID == 0 {
 		return store.Session{}, errors.New("cestafet could not find the claude process that started this MCP server")
 	}
-	sess, err := s.app.Store.ByClaudePID(s.claudePID)
+	sess, err := s.app.Store.ByOwner(s.claude.PID, core.StartedMillis(s.claude))
 	// A hook may be registering the session right now (startup, /clear): wait briefly.
 	for i := 0; i < 10 && errors.Is(err, store.ErrNotFound); i++ {
 		time.Sleep(200 * time.Millisecond)
-		sess, err = s.app.Store.ByClaudePID(s.claudePID)
+		sess, err = s.app.Store.ByOwner(s.claude.PID, core.StartedMillis(s.claude))
 	}
 	if errors.Is(err, store.ErrNotFound) {
 		return store.Session{}, errors.New("this session is not registered yet; the cestafet plugin's hooks register it " +

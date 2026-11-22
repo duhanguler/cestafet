@@ -304,3 +304,52 @@ func TestTakePendingWithinAlwaysDeliversOne(t *testing.T) {
 		t.Fatalf("batch=%d left=%d err=%v", len(batch), left, err)
 	}
 }
+
+func TestReusedClaudePidDoesNotInheritASession(t *testing.T) {
+	s := newStore(t)
+	old := Session{ID: "old", ClaudePID: 500, ClaudeStarted: 1000, Profile: "p", Project: "proj", Cwd: "/w"}
+	if _, err := s.Register(old); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.MakeCoordinator("old"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ByOwner(500, 2000); err == nil {
+		t.Fatal("a younger process with the same pid matched the old session")
+	}
+	if got, err := s.ByOwner(500, 1000); err != nil || got.ID != "old" {
+		t.Fatalf("own process: %+v, %v", got, err)
+	}
+	// The new claude process with the reused pid registers: the dead process's
+	// session is retired, but its coordinator role does not move over.
+	fresh := Session{ID: "fresh", ClaudePID: 500, ClaudeStarted: 2000, Profile: "p", Project: "proj", Cwd: "/w"}
+	if _, err := s.Register(fresh); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.Get("fresh")
+	if got.Role == RoleCoordinator {
+		t.Fatal("coordinator role moved to a different process that reused the pid")
+	}
+	if o, _ := s.Get("old"); o.Status != StatusGone {
+		t.Fatalf("old session status = %q, want gone", o.Status)
+	}
+}
+
+func TestClearKeepsCoordinatorWithKnownStartTime(t *testing.T) {
+	s := newStore(t)
+	if _, err := s.Register(Session{ID: "a", ClaudePID: 600, ClaudeStarted: 1000, Profile: "p", Project: "proj", Cwd: "/w"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.MakeCoordinator("a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Register(Session{ID: "b", ClaudePID: 600, ClaudeStarted: 1000, Profile: "p", Project: "proj", Cwd: "/w"}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Get("b"); got.Role != RoleCoordinator {
+		t.Fatalf("/clear in the same process lost the coordinator role: %+v", got)
+	}
+	if got, err := s.ByOwner(600, 0); err != nil || got.ID != "b" {
+		t.Fatalf("unknown start time (Unix) must still match by pid: %+v, %v", got, err)
+	}
+}
