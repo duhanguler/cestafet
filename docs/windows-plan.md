@@ -31,6 +31,30 @@ Run it on a real Windows machine with Claude Code installed natively, from Power
 Git Bash, and with an npm install if available, before and after `/clear`. CI adds
 `windows-latest` for build and unit tests in this phase.
 
+## Phase 0 results (2026-11-23)
+
+Windows 11 ARM64 (build 22000) in UTM, Claude Code 2.1.330 native install, Git for Windows 2.56.1,
+`cestafet` windows/arm64 diagnostic build; sessions started from cmd and from Git Bash, `-p` and
+interactive, with `/clear`.
+
+| Question | Windows | macOS |
+|---|---|---|
+| MCP server's parent | `claude.exe` (depth 1) | `claude` (depth 1) |
+| Hook's ancestors | `bash.exe` → `bash.exe` → `claude.exe` (depth 3): hooks run through Git Bash | `claude` (depth 1) |
+| `claude.exe` pid across `/clear` | unchanged (1332) | unchanged |
+| Payload `cwd` (also when started from Git Bash) | `C:\Users\u\ce-test` | `/Users/u/...` |
+| `git rev-parse --show-toplevel` | `C:/Users/u/ce-test` (forward slashes) | same as cwd |
+| Hook env `CLAUDE_CODE_SESSION_ID` | equals payload `session_id`, follows `/clear` | same |
+| MCP env `CLAUDE_CODE_SESSION_ID` | launch id | launch id (stale after `/clear`) |
+| Bash tool name in `PreToolUse` | `Bash` | `Bash` |
+| Current `ClaudePID()` | 0 (no `ps`) | correct |
+
+Conclusion for phase 1: the existing design holds on Windows. Hooks and the MCP server find the
+same `claude.exe` by walking ancestors, and its pid survives `/clear`, so the pid-based
+`supersede` chain works unchanged once the walk is cross-platform. No launch-id fallback is
+needed. The PowerShell tool was not exercised (Claude Code chose `Bash`); the guard change stays
+in phase 3 with its own check.
+
 ## Phase 1 — identity (designed from Phase 0 results)
 
 - The hook payload's `session_id` stays authoritative.
