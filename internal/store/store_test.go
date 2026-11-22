@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -46,7 +47,8 @@ func TestOpenCreatesPrivateFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat: %v", err)
 	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
+	// Windows has no Unix modes; the file is protected by the profile's ACL there.
+	if perm := info.Mode().Perm(); runtime.GOOS != "windows" && perm != 0o600 {
 		t.Fatalf("db mode = %o, want 600", perm)
 	}
 }
@@ -351,5 +353,31 @@ func TestClearKeepsCoordinatorWithKnownStartTime(t *testing.T) {
 	}
 	if got, err := s.ByOwner(600, 0); err != nil || got.ID != "b" {
 		t.Fatalf("unknown start time (Unix) must still match by pid: %+v, %v", got, err)
+	}
+}
+
+func TestOpenPathWithSpecialCharacters(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "Osman Hömek #1 100%")
+	path := filepath.Join(dir, "bus.db")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	from := register(t, s, "a", "proj")
+	register(t, s, "b", "proj")
+	if _, _, err := s.Send(NewNotice{From: from, Origin: OriginAgent, Body: "hi"}); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Close()
+	entries, _ := os.ReadDir(dir)
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	if len(names) == 0 || names[0] != "bus.db" {
+		t.Fatalf("files in %q = %v, want bus.db (and WAL files)", dir, names)
+	}
+	if fi, err := os.Stat(path); err != nil || fi.Size() == 0 {
+		t.Fatalf("database at %q: %v", path, err)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/orkono/cestafet/internal/paths"
 	"time"
 )
 
@@ -125,7 +126,7 @@ func (s *Store) supersede(newID string, pid int, started int64) error {
 // LivePathProjects returns the distinct project keys of non-gone sessions that
 // are filesystem paths (sessions outside git repositories and mappings).
 func (s *Store) LivePathProjects() ([]string, error) {
-	rows, err := s.db.Query(`SELECT DISTINCT project FROM sessions WHERE status != ? AND project LIKE '/%'`, StatusGone)
+	rows, err := s.db.Query(`SELECT DISTINCT project FROM sessions WHERE status != ?`, StatusGone)
 	if err != nil {
 		return nil, fmt.Errorf("list path projects: %w", err)
 	}
@@ -136,7 +137,9 @@ func (s *Store) LivePathProjects() ([]string, error) {
 		if err := rows.Scan(&p); err != nil {
 			return nil, fmt.Errorf("scan project: %w", err)
 		}
-		out = append(out, p)
+		if paths.IsPath(p) {
+			out = append(out, p)
+		}
 	}
 	return out, rows.Err()
 }

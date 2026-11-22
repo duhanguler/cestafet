@@ -6,12 +6,14 @@ package projects
 import (
 	"bytes"
 	"fmt"
+	"github.com/orkono/cestafet/internal/paths"
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"sort"
-	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 
@@ -29,13 +31,17 @@ type Config struct {
 	Projects map[string]Project `toml:"projects"`
 }
 
-// DefaultPath returns $XDG_CONFIG_HOME/cestafet/projects.toml, falling back to
-// ~/.config/cestafet/projects.toml.
+// DefaultPath returns $CESTAFET_PROJECTS, else
+// $XDG_CONFIG_HOME/cestafet/projects.toml, else %APPDATA%\cestafet\projects.toml
+// on Windows and ~/.config/cestafet/projects.toml elsewhere.
 func DefaultPath() (string, error) {
 	if p := os.Getenv("CESTAFET_PROJECTS"); p != "" {
 		return p, nil
 	}
 	base := os.Getenv("XDG_CONFIG_HOME")
+	if base == "" && runtime.GOOS == "windows" {
+		base = os.Getenv("APPDATA")
+	}
 	if base == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -76,14 +82,31 @@ func Save(path string, cfg Config) error {
 	if err := toml.NewEncoder(&buf).Encode(cfg); err != nil {
 		return fmt.Errorf("encode config: %w", err)
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, buf.Bytes(), 0o600); err != nil {
+	// A temp file of its own per writer, so two sessions saving at once never
+	// share one; the rename is retried because Windows refuses to replace a
+	// file another process (or a virus scanner) has open for a moment.
+	f, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
+	if err != nil {
 		return fmt.Errorf("write config: %w", err)
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		return fmt.Errorf("replace config: %w", err)
+	tmp := f.Name()
+	_, werr := f.Write(buf.Bytes())
+	if cerr := f.Close(); werr == nil {
+		werr = cerr
 	}
-	return nil
+	if werr != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("write config: %w", werr)
+	}
+	var rerr error
+	for attempt := 0; attempt < 10; attempt++ {
+		if rerr = os.Rename(tmp, path); rerr == nil {
+			return nil
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	_ = os.Remove(tmp)
+	return fmt.Errorf("replace config: %w", rerr)
 }
 
 var nameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
@@ -141,8 +164,7 @@ func (c Config) Resolve(l Location) string {
 }
 
 func under(path, prefix string) bool {
-	prefix = strings.TrimRight(prefix, "/")
-	return path == prefix || strings.HasPrefix(path, prefix+"/")
+	return paths.Within(path, prefix)
 }
 
 func (c Config) names() []string {

@@ -5,8 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite" // pure-Go SQLite driver
@@ -111,13 +114,17 @@ func migrate(db *sql.DB) error {
 	return nil
 }
 
-// DefaultPath returns the database location: $XDG_DATA_HOME/cestafet/bus.db,
-// falling back to ~/.local/share/cestafet/bus.db.
+// DefaultPath returns the database location: $CESTAFET_DB, else
+// $XDG_DATA_HOME/cestafet/bus.db, else %LOCALAPPDATA%\cestafet\bus.db on
+// Windows and ~/.local/share/cestafet/bus.db elsewhere.
 func DefaultPath() (string, error) {
 	if p := os.Getenv("CESTAFET_DB"); p != "" {
 		return p, nil
 	}
 	base := os.Getenv("XDG_DATA_HOME")
+	if base == "" && runtime.GOOS == "windows" {
+		base = os.Getenv("LOCALAPPDATA")
+	}
 	if base == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -140,7 +147,10 @@ func Open(path string) (*Store, error) {
 	}
 	_ = f.Close()
 
-	dsn := "file:" + path + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)"
+	dsn, err := fileURI(path)
+	if err != nil {
+		return nil, err
+	}
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
@@ -154,6 +164,23 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	return &Store{db: db, now: time.Now}, nil
+}
+
+// fileURI builds the SQLite URI for a database file. The path is made absolute
+// and percent-encoded, so spaces, '#', '%' and '?' in a home directory (common
+// on Windows) cannot cut the path short or be read as URI syntax.
+func fileURI(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("database path: %w", err)
+	}
+	p := filepath.ToSlash(abs)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p // C:/Users/... → /C:/Users/...
+	}
+	u := url.URL{Scheme: "file", Path: p,
+		RawQuery: "_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)"}
+	return u.String(), nil
 }
 
 // OpenDefault opens the database at DefaultPath.

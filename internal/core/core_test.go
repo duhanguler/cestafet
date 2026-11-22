@@ -1,12 +1,23 @@
 package core
 
 import (
+	"github.com/orkono/cestafet/internal/paths"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/orkono/cestafet/internal/identity"
 	"github.com/orkono/cestafet/internal/store"
 )
+
+// tp turns a test path written Unix-style into this platform's form
+// (/home/u/x → C:\home\u\x on Windows), so the same tables run everywhere.
+func tp(p string) string {
+	if runtime.GOOS == "windows" {
+		return paths.Canon("C:" + p)
+	}
+	return p
+}
 
 // newApp builds an App whose git lookup treats /home/u/git/* as repositories
 // and everything else as plain directories.
@@ -21,9 +32,9 @@ func newApp(t *testing.T) *App {
 	return &App{
 		Store:        st,
 		ProjectsPath: filepath.Join(dir, "projects.toml"),
-		Home:         "/home/u",
+		Home:         tp("/home/u"),
 		LookupRepo: func(d string) identity.Repo {
-			if filepath.Dir(d) == "/home/u/git" {
+			if filepath.Dir(d) == tp("/home/u/git") {
 				return identity.Repo{Root: d, Remote: "github.com/o/" + filepath.Base(d)}
 			}
 			return identity.Repo{}
@@ -42,46 +53,46 @@ func mustRegister(t *testing.T, a *App, id, cwd string, pid int) store.Session {
 
 func TestNonGitChildJoinsParentSession(t *testing.T) {
 	a := newApp(t)
-	parent := mustRegister(t, a, "p", "/home/u/work/app", 1)
-	child := mustRegister(t, a, "c", "/home/u/work/app/docs", 2)
-	if parent.Project != "/home/u/work/app" || child.Project != parent.Project {
+	parent := mustRegister(t, a, "p", tp("/home/u/work/app"), 1)
+	child := mustRegister(t, a, "c", tp("/home/u/work/app/docs"), 2)
+	if parent.Project != tp("/home/u/work/app") || child.Project != parent.Project {
 		t.Fatalf("parent=%q child=%q", parent.Project, child.Project)
 	}
 }
 
 func TestReverseStartOrderMeetsOnNextRegistration(t *testing.T) {
 	a := newApp(t)
-	child := mustRegister(t, a, "c", "/home/u/work/app/docs", 2)
-	if child.Project != "/home/u/work/app/docs" {
+	child := mustRegister(t, a, "c", tp("/home/u/work/app/docs"), 2)
+	if child.Project != tp("/home/u/work/app/docs") {
 		t.Fatalf("lone child project = %q", child.Project)
 	}
-	mustRegister(t, a, "p", "/home/u/work/app", 1)
+	mustRegister(t, a, "p", tp("/home/u/work/app"), 1)
 	// the child's next prompt re-registers it
-	child = mustRegister(t, a, "c", "/home/u/work/app/docs", 2)
-	if child.Project != "/home/u/work/app" {
+	child = mustRegister(t, a, "c", tp("/home/u/work/app/docs"), 2)
+	if child.Project != tp("/home/u/work/app") {
 		t.Fatalf("child did not join parent: %q", child.Project)
 	}
 }
 
 func TestChildKeepsProjectWhenParentLeaves(t *testing.T) {
 	a := newApp(t)
-	mustRegister(t, a, "p", "/home/u/work/app", 1)
-	mustRegister(t, a, "c", "/home/u/work/app/docs", 2)
+	mustRegister(t, a, "p", tp("/home/u/work/app"), 1)
+	mustRegister(t, a, "c", tp("/home/u/work/app/docs"), 2)
 	if err := a.Store.End("p"); err != nil {
 		t.Fatal(err)
 	}
-	child := mustRegister(t, a, "c", "/home/u/work/app/docs", 2)
-	if child.Project != "/home/u/work/app" {
+	child := mustRegister(t, a, "c", tp("/home/u/work/app/docs"), 2)
+	if child.Project != tp("/home/u/work/app") {
 		t.Fatalf("child lost its project: %q", child.Project)
 	}
 }
 
 func TestSiblingsAndHomeDoNotMerge(t *testing.T) {
 	a := newApp(t)
-	mustRegister(t, a, "home", "/home/u", 1)
-	mustRegister(t, a, "a", "/home/u/work/a", 2)
-	b := mustRegister(t, a, "b", "/home/u/work/b", 3)
-	if b.Project != "/home/u/work/b" {
+	mustRegister(t, a, "home", tp("/home/u"), 1)
+	mustRegister(t, a, "a", tp("/home/u/work/a"), 2)
+	b := mustRegister(t, a, "b", tp("/home/u/work/b"), 3)
+	if b.Project != tp("/home/u/work/b") {
 		t.Fatalf("sibling or home merged: %q", b.Project)
 	}
 	top := mustRegister(t, a, "top", "/", 4)
@@ -93,9 +104,9 @@ func TestSiblingsAndHomeDoNotMerge(t *testing.T) {
 
 func TestGitRepoInsideNonGitParentKeepsItsRemote(t *testing.T) {
 	a := newApp(t)
-	mustRegister(t, a, "p", "/home/u", 1)
-	mustRegister(t, a, "w", "/home/u/git", 2)
-	r := mustRegister(t, a, "r", "/home/u/git/api", 3)
+	mustRegister(t, a, "p", tp("/home/u"), 1)
+	mustRegister(t, a, "w", tp("/home/u/git"), 2)
+	r := mustRegister(t, a, "r", tp("/home/u/git/api"), 3)
 	if r.Project != "github.com/o/api" {
 		t.Fatalf("git repo project = %q", r.Project)
 	}
