@@ -38,6 +38,11 @@ Task breakdown: [plan.md](plan.md) · v0.2 design: [v0.2-design.md](v0.2-design.
 - Push delivery to idle sessions through Claude Code channels (opt-in; spike first, see
   [v0.2-design.md](v0.2-design.md) §2 for the allowlist constraint).
 
+## Windows support
+
+- Accepted from a user's review after a referee round; phased plan with a real-Windows release
+  gate in [windows-plan.md](windows-plan.md).
+
 ## Later
 
 - Codex adapter (its own hook/MCP surface) — deferred.
