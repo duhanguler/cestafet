@@ -70,6 +70,7 @@ func (s *Server) registerNoticeTools(srv *mcp.Server) {
 		OnBehalfOfUser bool     `json:"on_behalf_of_user" jsonschema:"true only when the user asked in this turn to tell the other sessions; false for your own initiative"`
 		Standing       bool     `json:"standing,omitempty" jsonschema:"true for a rule that stays in force until lifted, e.g. 'no deploys to staging while testing', 'from now on ...'; false for one-off news"`
 		ExpiresIn      string   `json:"expires_in,omitempty" jsonschema:"standing rules only: end it automatically after this long, e.g. 2h or 1d (max 30d); omit to keep it until lifted"`
+		Guard          []string `json:"guard,omitempty" jsonschema:"standing rules only: up to 5 narrow glob patterns for Bash commands the rule forbids, e.g. '*deploy* staging*'; a matching command makes Claude Code ask the user first. * is any text, case-insensitive"`
 	}
 	mcp.AddTool(srv, &mcp.Tool{Name: "notify",
 		Description: "Send a notice to the other sessions of this project (every repository and profile in it). " +
@@ -85,8 +86,8 @@ func (s *Server) registerNoticeTools(srv *mcp.Server) {
 			if err != nil {
 				return nil, sentOut{}, err
 			}
-			n := store.NewNotice{From: me, Body: in.Body, To: in.To, ExpiresIn: expires}
-			if in.Standing || expires > 0 {
+			n := store.NewNotice{From: me, Body: in.Body, To: in.To, ExpiresIn: expires, Guards: in.Guard}
+			if in.Standing || expires > 0 || len(in.Guard) > 0 {
 				n.Kind = store.KindRule
 			}
 			var note string

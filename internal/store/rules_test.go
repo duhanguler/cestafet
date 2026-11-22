@@ -188,3 +188,54 @@ func TestLiftBodyKeepsUTF8Intact(t *testing.T) {
 		t.Fatalf("lift body: valid=%v len=%d", utf8.ValidString(body), len(body))
 	}
 }
+
+func TestGuardedRules(t *testing.T) {
+	s := newStore(t)
+	now := time.Unix(1_800_000_000, 0)
+	s.SetClock(func() time.Time { return now })
+	coord := register(t, s, "coord", "proj")
+	other := register(t, s, "x", "elsewhere")
+	guarded, _, err := s.Send(NewNotice{From: coord, Origin: OriginUser, Kind: KindRule,
+		Body: "no deploys to staging", Guards: []string{"*deploy* staging*"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sendRule(t, s, coord, "unguarded rule", 0)
+	short, _, _ := s.Send(NewNotice{From: coord, Origin: OriginUser, Kind: KindRule, Body: "short freeze",
+		Guards: []string{"git push * main"}, ExpiresIn: time.Hour})
+	lifted, _, _ := s.Send(NewNotice{From: coord, Origin: OriginUser, Kind: KindRule, Body: "old",
+		Guards: []string{"*make release*"}})
+	if _, _, err := s.Lift(lifted, coord, OriginUser, 0, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.Send(NewNotice{From: other, Origin: OriginUser, Kind: KindRule, Body: "theirs",
+		Guards: []string{"*terraform apply*"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.GuardedRules("proj")
+	if err != nil || len(got) != 2 || got[0].ID != short || got[1].ID != guarded {
+		t.Fatalf("guarded = %+v, %v", got, err)
+	}
+	if len(got[1].Guards) != 1 || got[1].Guards[0] != "*deploy* staging*" {
+		t.Fatalf("guards = %v", got[1].Guards)
+	}
+	now = now.Add(2 * time.Hour)
+	if got, _ := s.GuardedRules("proj"); len(got) != 1 || got[0].ID != guarded {
+		t.Fatalf("after expiry = %+v", got)
+	}
+}
+
+func TestSendValidatesGuards(t *testing.T) {
+	s := newStore(t)
+	coord := register(t, s, "coord", "proj")
+	cases := map[string]NewNotice{
+		"guard on info": {From: coord, Origin: OriginAgent, Body: "x", Guards: []string{"*deploy*"}},
+		"too broad":     {From: coord, Origin: OriginAgent, Body: "x", Kind: KindRule, Guards: []string{"*"}},
+	}
+	for name, n := range cases {
+		if _, _, err := s.Send(n); err == nil {
+			t.Errorf("%s: expected an error", name)
+		}
+	}
+}

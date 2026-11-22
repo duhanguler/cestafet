@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/orkono/cestafet/internal/guard"
 )
 
 // Notice kinds.
@@ -41,6 +43,35 @@ func (s *Store) ruleFields(n NewNotice) (string, any, error) {
 		return kind, s.now().Add(n.ExpiresIn).Unix(), nil
 	}
 	return kind, nil, nil
+}
+
+// guardField validates a notice's guard patterns and returns them as stored.
+func guardField(kind string, patterns []string) (string, error) {
+	if len(patterns) == 0 {
+		return "", nil
+	}
+	if kind != KindRule {
+		return "", errors.New("only a standing rule can carry guard patterns")
+	}
+	clean, err := guard.Validate(patterns)
+	if err != nil {
+		return "", err
+	}
+	return strings.Join(clean, "\n"), nil
+}
+
+// GuardedRules lists the project's rules in force that carry guard patterns,
+// newest first. It is called before every Bash command, so it stays one
+// indexed query.
+func (s *Store) GuardedRules(project string) ([]Notice, error) {
+	rows, err := s.db.Query(`SELECT `+noticeBase+`, 0
+		FROM notices n LEFT JOIN prompts p ON p.id = n.prompt_id
+		WHERE n.project = ? AND n.kind = 'rule' AND n.guards != '' AND `+activeRule+` ORDER BY n.id DESC`,
+		project, s.unix())
+	if err != nil {
+		return nil, fmt.Errorf("guarded rules: %w", err)
+	}
+	return scanNotices(rows)
 }
 
 // ActiveRules lists the rules of a project still in force, newest first.

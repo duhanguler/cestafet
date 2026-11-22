@@ -25,6 +25,11 @@ bildir: ...", "let everyone know the API contract changed".
      `standing: true`. If the user gives a duration ("for two hours", "until tomorrow"), set
      `expires_in` (e.g. `2h`, `1d`; at most `30d`). Sessions that start later still receive an
      active rule, and every session sees the rules in force when it starts or compacts.
+   - **Guard** — when a rule forbids specific commands (a deploy, a push to main, a migration),
+     add `guard` patterns so Claude Code asks the user before any session runs a matching Bash
+     command: e.g. `*deploy* staging*`, `git push * main`, `*kubectl* -n staging *`. Keep them
+     narrow (they are checked before every Bash command of every session in the project), at
+     most 5, and only for commands the user's words clearly cover. Never guard broad words.
 4. Report how many sessions it reached. Later, `notice_status` shows who acknowledged and replies.
 
 ## The user says a rule no longer applies

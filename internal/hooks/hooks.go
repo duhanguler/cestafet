@@ -21,11 +21,18 @@ type Input struct {
 	// AgentID is set when the tool call was made by a subagent. Its context is
 	// not the main conversation's, so notices are held for the main agent.
 	AgentID string `json:"agent_id"`
+	// PreToolUse
+	ToolName  string `json:"tool_name"`
+	ToolInput struct {
+		Command string `json:"command"`
+	} `json:"tool_input"`
 }
 
 type specificOutput struct {
-	HookEventName     string `json:"hookEventName"`
-	AdditionalContext string `json:"additionalContext"`
+	HookEventName            string `json:"hookEventName"`
+	AdditionalContext        string `json:"additionalContext,omitempty"`
+	PermissionDecision       string `json:"permissionDecision,omitempty"`
+	PermissionDecisionReason string `json:"permissionDecisionReason,omitempty"`
 }
 
 type output struct {
@@ -37,6 +44,7 @@ var Events = map[string]string{
 	"session-start": "SessionStart",
 	"prompt":        "UserPromptSubmit",
 	"post-tool":     "PostToolUse",
+	"pre-tool":      "PreToolUse",
 	"session-end":   "SessionEnd",
 }
 
@@ -53,6 +61,15 @@ func Handle(app *core.App, event string, in io.Reader, out io.Writer, claudePID 
 	}
 	if input.SessionID == "" {
 		return fmt.Errorf("hook payload has no session_id")
+	}
+
+	if name == "PreToolUse" {
+		reason, err := guardReason(app, input)
+		if err != nil || reason == "" {
+			return err
+		}
+		return json.NewEncoder(out).Encode(output{specificOutput{HookEventName: name,
+			PermissionDecision: "ask", PermissionDecisionReason: reason}})
 	}
 
 	context, err := run(app, name, input, claudePID)

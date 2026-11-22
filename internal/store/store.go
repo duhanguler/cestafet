@@ -79,6 +79,8 @@ var migrations = []string{
 	ALTER TABLE notices ADD COLUMN lifted_by TEXT;
 	ALTER TABLE notices ADD COLUMN lifts INTEGER;
 	CREATE INDEX IF NOT EXISTS notices_rules ON notices(project, kind, lifted_at);`,
+	// v0.2: guard patterns on rules, newline-separated.
+	`ALTER TABLE notices ADD COLUMN guards TEXT NOT NULL DEFAULT '';`,
 }
 
 func migrate(db *sql.DB) error {

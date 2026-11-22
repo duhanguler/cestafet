@@ -210,3 +210,63 @@ func TestOrientationListsActiveRules(t *testing.T) {
 		}
 	}
 }
+
+func preTool(t *testing.T, app *core.App, payload string) output {
+	t.Helper()
+	var out bytes.Buffer
+	if err := Handle(app, "pre-tool", strings.NewReader(payload), &out, 2); err != nil {
+		t.Fatalf("pre-tool: %v", err)
+	}
+	var o output
+	if out.Len() > 0 {
+		if err := json.Unmarshal(out.Bytes(), &o); err != nil {
+			t.Fatalf("bad output %q: %v", out.String(), err)
+		}
+	}
+	return o
+}
+
+func TestGuardAsksBeforeAMatchingCommand(t *testing.T) {
+	app := newApp(t)
+	fire(t, app, "session-start", `{"session_id":"coord","cwd":"/w/app"}`, 1)
+	fire(t, app, "session-start", `{"session_id":"busy","cwd":"/w/app"}`, 2)
+	coord, _ := app.Store.Get("coord")
+	id, _, err := app.Store.Send(store.NewNotice{From: coord, Origin: store.OriginUser, Kind: store.KindRule,
+		Body: "Testing has started. Do not deploy to staging.", Guards: []string{"*deploy* staging*"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	o := preTool(t, app, `{"session_id":"busy","cwd":"/w/app","tool_name":"Bash","tool_input":{"command":"./scripts/deploy.sh staging"}}`)
+	h := o.HookSpecificOutput
+	if h.HookEventName != "PreToolUse" || h.PermissionDecision != "ask" {
+		t.Fatalf("output = %+v", h)
+	}
+	for _, want := range []string{"cestafet rule #" + strconv.FormatInt(id, 10), "Do not deploy to staging.", "*deploy* staging*"} {
+		if !strings.Contains(h.PermissionDecisionReason, want) {
+			t.Fatalf("reason lacks %q: %q", want, h.PermissionDecisionReason)
+		}
+	}
+	// A subagent's command is guarded too.
+	sub := preTool(t, app, `{"session_id":"busy","cwd":"/w/app","agent_id":"a1","tool_name":"Bash","tool_input":{"command":"deploy staging"}}`)
+	if sub.HookSpecificOutput.PermissionDecision != "ask" {
+		t.Fatalf("subagent command not guarded: %+v", sub)
+	}
+
+	quiet := []string{
+		`{"session_id":"busy","cwd":"/w/app","tool_name":"Bash","tool_input":{"command":"./scripts/deploy.sh production"}}`,
+		`{"session_id":"busy","cwd":"/w/app","tool_name":"Read","tool_input":{"file_path":"deploy staging"}}`,
+		`{"session_id":"stranger","cwd":"/w/app","tool_name":"Bash","tool_input":{"command":"deploy staging"}}`,
+	}
+	for _, p := range quiet {
+		if o := preTool(t, app, p); o.HookSpecificOutput.PermissionDecision != "" {
+			t.Errorf("unexpected decision for %s: %+v", p, o)
+		}
+	}
+	if _, _, err := app.Store.Lift(id, coord, store.OriginUser, 0, ""); err != nil {
+		t.Fatal(err)
+	}
+	if o := preTool(t, app, `{"session_id":"busy","cwd":"/w/app","tool_name":"Bash","tool_input":{"command":"deploy staging"}}`); o.HookSpecificOutput.PermissionDecision != "" {
+		t.Fatalf("lifted rule still guards: %+v", o)
+	}
+}

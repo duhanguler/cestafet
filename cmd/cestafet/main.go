@@ -26,7 +26,7 @@ Usage:
                            send a notice from the terminal (origin=agent)
   cestafet mcp             run the MCP server (started by the plugin)
   cestafet hook <event>    run a hook handler (started by the plugin):
-                           session-start | prompt | post-tool | session-end
+                           session-start | prompt | pre-tool | post-tool | session-end
   cestafet version
 `
 

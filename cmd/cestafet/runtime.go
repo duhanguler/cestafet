@@ -18,7 +18,7 @@ import (
 // so failures are logged and the process still exits 0.
 func runHook(args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: cestafet hook <%s>", "session-start|prompt|post-tool|session-end")
+		return fmt.Errorf("usage: cestafet hook <%s>", "session-start|prompt|pre-tool|post-tool|session-end")
 	}
 	app, err := core.Open()
 	if err != nil {

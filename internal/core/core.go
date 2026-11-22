@@ -229,7 +229,11 @@ func RenderRules(rules []store.Notice) string {
 		if !r.ExpiresAt.IsZero() {
 			until = "until " + r.ExpiresAt.UTC().Format(time.RFC3339)
 		}
-		fmt.Fprintf(&b, "\n- #%d [%s, from %s, %s] %s", r.ID, r.Origin, r.FromProfile, until, quote(r.Body, 300))
+		guarded := ""
+		if len(r.Guards) > 0 {
+			guarded = ", guarded"
+		}
+		fmt.Fprintf(&b, "\n- #%d [%s, from %s, %s%s] %s", r.ID, r.Origin, r.FromProfile, until, guarded, quote(r.Body, 300))
 	}
 	return b.String()
 }
