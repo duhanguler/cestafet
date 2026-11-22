@@ -10,6 +10,9 @@
 > gate, with no Anthropic reply so far:
 > <https://github.com/anthropics/claude-plugins-official/issues/7024>.
 >
+> Verified request sent 2026-11-22 (legal name and website on <https://orkono.ai>); case
+> `CASE-FF85CB3E`, open. Next: when it is approved, re-validate the submission.
+>
 > Other findings in that run: a policy hold because the MCP command (`cestafet` from `PATH`)
 > cannot be read; a warning that the `PreToolUse` hook's decision cannot be inspected (it only
 > ever returns `ask`); informational notes that the portal prefers hook and MCP commands started
