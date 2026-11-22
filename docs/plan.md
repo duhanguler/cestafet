@@ -3,7 +3,7 @@
 Each task is test-first (RED → GREEN → refactor) and lands as its own PR unless noted.
 Tracking: GitHub milestones `v0.1.1` and `v0.2.0`.
 
-## v0.1.1 — patch
+## v0.1.1 — patch (done: shipped in v0.1.1 – v0.1.3)
 
 | # | Task | Owner | Notes |
 |---|---|---|---|

@@ -19,12 +19,13 @@ Task breakdown: [plan.md](plan.md) · v0.2 design: [v0.2-design.md](v0.2-design.
 - 8 KB / 16 KB notice payloads (4 KB verified).
 - Claude Code's built-in ListAgents / SendMessage across profiles (inconclusive, not needed).
 
-## v0.1.1 (patch)
+## Done for v0.1.1 – v0.1.3
 
-- Cap the context one hook injects, so several pending 4 KB notices cannot flood a session.
-- Homebrew cask (config ready; waits for the `orkono/homebrew-tap` repo and its token).
-- `cestafet doctor` reports binary vs. plugin version.
-- README demo GIF and the announcement.
+- A notice backlog is delivered over successive hooks, at most 12 KB per hook.
+- `cestafet doctor` reports binary and plugin versions and the `cestafet` on PATH; `setup`
+  updates an installed plugin; `go install` builds report their version.
+- Homebrew cask (`brew install --cask orkono/tap/cestafet`), clearing macOS quarantine.
+- README demo GIF; announcement drafts in [announcement.md](announcement.md).
 
 ## v0.2.0
 
@@ -37,3 +38,8 @@ Task breakdown: [plan.md](plan.md) · v0.2 design: [v0.2-design.md](v0.2-design.
 ## Later
 
 - Codex adapter (its own hook/MCP surface) — deferred.
+
+## Not planned
+
+- Apple Developer ID signing and notarization: no developer account. Release binaries stay
+  unsigned; the Homebrew cask clears the quarantine flag, `go install` builds are unaffected.
