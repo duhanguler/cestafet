@@ -40,6 +40,9 @@ baton — with a **c** for Claude, Codex, ChatGPT.
 - **Standing rules.** "No deploys to staging while testing" is kept as a rule: it stays in force
   until lifted ("testing finished, deploys are allowed again") or until it expires, reaches
   sessions that start later, and is listed to every session when it starts or compacts.
+  A rule can carry narrow guard patterns (`*deploy* staging*`): before any session runs a matching
+  Bash command, Claude Code asks you first, with the rule as the reason. cestafet never denies on
+  its own.
 - **Coordinator.** `/cestafet:coordinate` makes a session the project's coordinator and announces
   it to the others.
 - **Local only.** One Go binary, one SQLite file (`~/.local/share/cestafet/bus.db`, mode 0600),

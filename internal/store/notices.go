@@ -35,7 +35,8 @@ type Notice struct {
 	Kind        string    `json:"kind"`
 	ExpiresAt   time.Time `json:"expires_at,omitzero"`
 	LiftedAt    time.Time `json:"lifted_at,omitzero"`
-	Lifts       int64     `json:"lifts,omitempty"` // the rule this notice lifted
+	Lifts       int64     `json:"lifts,omitempty"`  // the rule this notice lifted
+	Guards      []string  `json:"guards,omitempty"` // command patterns that ask before running
 }
 
 // NewNotice describes a notice to send.
@@ -47,6 +48,7 @@ type NewNotice struct {
 	To        []string      // explicit recipients; empty = every other live session of the project
 	Kind      string        // KindInfo (default) or KindRule
 	ExpiresIn time.Duration // rules only; 0 = until lifted
+	Guards    []string      // rules only; see package guard
 	lifts     int64
 }
 
@@ -64,6 +66,10 @@ func (s *Store) Send(n NewNotice) (int64, []string, error) {
 		return 0, nil, fmt.Errorf("invalid origin %q", n.Origin)
 	}
 	kind, expiresAt, err := s.ruleFields(n)
+	if err != nil {
+		return 0, nil, err
+	}
+	guards, err := guardField(kind, n.Guards)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -86,9 +92,9 @@ func (s *Store) Send(n NewNotice) (int64, []string, error) {
 		lifts = n.lifts
 	}
 	res, err := tx.Exec(`INSERT INTO notices (project, from_session, from_profile, from_role, origin, prompt_id, body,
-		created_at, kind, expires_at, lifts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		created_at, kind, expires_at, lifts, guards) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		n.From.Project, n.From.ID, n.From.Profile, n.From.Role, n.Origin, promptID, body, s.unix(),
-		kind, expiresAt, lifts)
+		kind, expiresAt, lifts, guards)
 	if err != nil {
 		return 0, nil, fmt.Errorf("insert notice: %w", err)
 	}
@@ -153,7 +159,7 @@ func (s *Store) Backfill(sessionID, project string) error {
 // noticeBase selects a notice (alias n) with its prompt text (alias p).
 const noticeBase = `n.id, n.project, n.from_session, n.from_profile, n.from_role, n.origin,
 	COALESCE(p.text, ''), n.body, n.created_at, n.kind, COALESCE(n.expires_at, 0),
-	COALESCE(n.lifted_at, 0), COALESCE(n.lifts, 0)`
+	COALESCE(n.lifted_at, 0), COALESCE(n.lifts, 0), n.guards`
 
 // noticeCols adds the delivery's ack time (alias d).
 const noticeCols = noticeBase + `, COALESCE(d.acked_at, 0)`
@@ -164,14 +170,18 @@ func scanNotices(rows *sql.Rows) ([]Notice, error) {
 	for rows.Next() {
 		var n Notice
 		var created, expires, lifted, acked int64
+		var guards string
 		if err := rows.Scan(&n.ID, &n.Project, &n.FromSession, &n.FromProfile, &n.FromRole, &n.Origin,
-			&n.PromptText, &n.Body, &created, &n.Kind, &expires, &lifted, &n.Lifts, &acked); err != nil {
+			&n.PromptText, &n.Body, &created, &n.Kind, &expires, &lifted, &n.Lifts, &guards, &acked); err != nil {
 			return nil, fmt.Errorf("scan notice: %w", err)
 		}
 		n.CreatedAt = time.Unix(created, 0)
 		n.ExpiresAt = unixOrZero(expires)
 		n.LiftedAt = unixOrZero(lifted)
 		n.AckedAt = unixOrZero(acked)
+		if guards != "" {
+			n.Guards = strings.Split(guards, "\n")
+		}
 		out = append(out, n)
 	}
 	return out, rows.Err()

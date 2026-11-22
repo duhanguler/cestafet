@@ -6,6 +6,9 @@
     "UserPromptSubmit": [
       { "hooks": [{ "type": "command", "command": "cestafet hook prompt", "timeout": 10 }] }
     ],
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "cestafet hook pre-tool", "timeout": 5 }] }
+    ],
     "PostToolUse": [
       { "matcher": "*", "hooks": [{ "type": "command", "command": "cestafet hook post-tool", "timeout": 5 }] }
     ],

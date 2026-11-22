@@ -50,17 +50,18 @@ func (s *Server) origin(me store.Session, onBehalfOfUser bool) (string, int64, s
 }
 
 type ruleView struct {
-	ID        int64  `json:"id"`
-	From      string `json:"from"`
-	Origin    string `json:"origin"`
-	Body      string `json:"body"`
-	CreatedAt string `json:"created_at"`
-	ExpiresAt string `json:"expires_at,omitempty"`
+	ID        int64    `json:"id"`
+	From      string   `json:"from"`
+	Origin    string   `json:"origin"`
+	Body      string   `json:"body"`
+	CreatedAt string   `json:"created_at"`
+	ExpiresAt string   `json:"expires_at,omitempty"`
+	Guard     []string `json:"guard,omitempty"`
 }
 
 func viewRule(n store.Notice) ruleView {
 	v := ruleView{ID: n.ID, From: n.FromProfile + " (" + n.FromRole + ")", Origin: n.Origin, Body: n.Body,
-		CreatedAt: n.CreatedAt.UTC().Format(time.RFC3339)}
+		CreatedAt: n.CreatedAt.UTC().Format(time.RFC3339), Guard: n.Guards}
 	if !n.ExpiresAt.IsZero() {
 		v.ExpiresAt = n.ExpiresAt.UTC().Format(time.RFC3339)
 	}
