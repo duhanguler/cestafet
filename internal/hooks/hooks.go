@@ -113,11 +113,15 @@ func run(app *core.App, name string, in Input, claudePID int) (string, error) {
 }
 
 func pending(app *core.App, sessionID string) string {
-	notices, err := app.Store.TakePending(sessionID)
+	notices, left, err := app.Store.TakePendingWithin(sessionID, core.MaxInjectBytes)
 	if err != nil {
 		return ""
 	}
-	return core.RenderNotices(notices)
+	out := core.RenderNotices(notices)
+	if left > 0 {
+		out += fmt.Sprintf("\n\n(cestafet: %d more notice(s) pending; they arrive with your next step.)", left)
+	}
+	return out
 }
 
 func join(parts ...string) string {

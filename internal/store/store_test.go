@@ -244,3 +244,63 @@ func TestNewSessionInSameProcessSupersedesOld(t *testing.T) {
 		t.Fatalf("ByClaudePID = %s", got.ID)
 	}
 }
+
+func TestTakePendingWithinSplitsLargeBacklog(t *testing.T) {
+	s := newStore(t)
+	from := register(t, s, "coord", "proj")
+	register(t, s, "m", "proj")
+	var sent []int64
+	for i := 0; i < 5; i++ {
+		body := strings.Repeat(string(rune('a'+i)), MaxBodyBytes)
+		id, _, err := s.Send(NewNotice{From: from, Origin: OriginAgent, Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		sent = append(sent, id)
+	}
+	var got []int64
+	for round := 0; round < 5 && len(got) < len(sent); round++ {
+		batch, left, err := s.TakePendingWithin("m", 12*1024)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(batch) == 0 {
+			t.Fatalf("round %d delivered nothing with %d left", round, left)
+		}
+		size := 0
+		for _, n := range batch {
+			size += len(n.Body)
+			got = append(got, n.ID)
+		}
+		if len(batch) > 1 && size > 12*1024 {
+			t.Fatalf("round %d injected %d bytes", round, size)
+		}
+		if left != len(sent)-len(got) {
+			t.Fatalf("round %d: left = %d, want %d", round, left, len(sent)-len(got))
+		}
+	}
+	if len(got) != len(sent) {
+		t.Fatalf("delivered %v, want %v", got, sent)
+	}
+	for i := range sent {
+		if got[i] != sent[i] {
+			t.Fatalf("order %v, want %v", got, sent)
+		}
+	}
+	if rest, left, _ := s.TakePendingWithin("m", 12*1024); len(rest) != 0 || left != 0 {
+		t.Fatalf("leftover %d notices, left=%d", len(rest), left)
+	}
+}
+
+func TestTakePendingWithinAlwaysDeliversOne(t *testing.T) {
+	s := newStore(t)
+	from := register(t, s, "coord", "proj")
+	register(t, s, "m", "proj")
+	if _, _, err := s.Send(NewNotice{From: from, Origin: OriginAgent, Body: strings.Repeat("x", MaxBodyBytes)}); err != nil {
+		t.Fatal(err)
+	}
+	batch, left, err := s.TakePendingWithin("m", 100)
+	if err != nil || len(batch) != 1 || left != 0 {
+		t.Fatalf("batch=%d left=%d err=%v", len(batch), left, err)
+	}
+}
