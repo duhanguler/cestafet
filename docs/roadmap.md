@@ -27,13 +27,16 @@ Task breakdown: [plan.md](plan.md) · v0.2 design: [v0.2-design.md](v0.2-design.
 - Homebrew cask (`brew install --cask orkono/tap/cestafet`), clearing macOS quarantine.
 - README demo GIF; announcement drafts in [announcement.md](announcement.md).
 
-## v0.2.0
+## Done for v0.2.0
 
 - Standing rules: a notice that stays in force until lifted or expired ("no deploys while
   testing"), re-shown to new and compacted sessions, lifted with plain language.
-- Optional guard: a `PreToolUse` hook asks before a Bash command matching an active rule.
-- Push delivery to idle sessions through Claude Code channels (opt-in; see the design for the
-  allowlist constraint).
+- Guard patterns on rules: a `PreToolUse` hook asks before a Bash command a rule forbids.
+
+## v0.3.0
+
+- Push delivery to idle sessions through Claude Code channels (opt-in; spike first, see
+  [v0.2-design.md](v0.2-design.md) §2 for the allowlist constraint).
 
 ## Later
 

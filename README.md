@@ -51,7 +51,7 @@ baton — with a **c** for Claude, Codex, ChatGPT.
 ## Install
 
 ```bash
-brew install --cask orkono/tap/cestafet                      # macOS / Linux, from v0.1.3
+brew install --cask orkono/tap/cestafet                      # macOS / Linux
 # or: go install github.com/orkono/cestafet/cmd/cestafet@latest
 cestafet setup
 ```
@@ -94,8 +94,9 @@ cestafet doctor               binary and plugin versions, PATH, identity of this
 
 ## Status
 
-v0.1.3. Claude Code only; push delivery to idle sessions, notice expiry and a Codex adapter
-are planned; see [docs/roadmap.md](docs/roadmap.md). Design notes: [docs/design.md](docs/design.md).
+v0.2.0. Claude Code only, macOS and Linux. Push delivery to idle sessions is planned for v0.3;
+see [docs/roadmap.md](docs/roadmap.md). Design notes: [docs/design.md](docs/design.md),
+[docs/v0.2-design.md](docs/v0.2-design.md).
 
 ## License
 
