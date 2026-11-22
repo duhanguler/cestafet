@@ -21,9 +21,11 @@ homebrew_casks:
     repository:
       owner: orkono
       name: homebrew-tap
-      token: '{{ envOrDefault "HOMEBREW_TAP_TOKEN" "" }}'
-    # Until the tap repo and its token exist, releases skip the tap instead of failing.
-    skip_upload: '{{ if eq (envOrDefault "HOMEBREW_TAP_TOKEN" "") "" }}true{{ end }}'
+      # GoReleaser accepts only a bare `{{ .Env.NAME }}` here (no functions). The release
+      # workflow always sets the variable, empty when the secret is missing.
+      token: '{{ .Env.HOMEBREW_TAP_TOKEN }}'
+    # Without the token (forks, local runs), releases skip the tap instead of failing.
+    skip_upload: '{{ if not (index .Env "HOMEBREW_TAP_TOKEN") }}true{{ end }}'
     caveats: |
       Next: run `cestafet setup` to install the Claude Code plugin into your profiles.
       If macOS blocks the unsigned binary, run:
