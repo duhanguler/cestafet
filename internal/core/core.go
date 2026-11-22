@@ -4,8 +4,8 @@ package core
 
 import (
 	"fmt"
+	"github.com/orkono/cestafet/internal/paths"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -48,7 +48,9 @@ func (a *App) Close() error { return a.Store.Close() }
 // live session (so sessions in ~/work/app and ~/work/app/docs meet), and only
 // then falls back to the directory itself.
 func (a *App) Locate(cwd string) (projects.Location, string, error) {
-	loc := projects.Location{Cwd: filepath.Clean(cwd), Repo: a.LookupRepo(cwd)}
+	repo := a.LookupRepo(cwd)
+	repo.Root = paths.Canon(repo.Root)
+	loc := projects.Location{Cwd: paths.Canon(cwd), Repo: repo}
 	cfg, err := projects.Load(a.ProjectsPath)
 	if err != nil {
 		return loc, "", err
@@ -74,11 +76,12 @@ func (a *App) ancestorProject(cwd string) (string, error) {
 	}
 	best := ""
 	for _, k := range keys {
-		if k == cwd || k == "/" || !strings.HasPrefix(cwd, strings.TrimRight(k, "/")+"/") {
+		if paths.Same(k, cwd) || paths.IsRoot(k) || !paths.Within(cwd, k) {
 			continue
 		}
-		if a.Home != "" && strings.HasPrefix(cwd, a.Home+"/") && !strings.HasPrefix(k, a.Home+"/") {
-			continue // the walk stops at $HOME
+		if a.Home != "" && paths.Within(cwd, a.Home) && !paths.Same(cwd, a.Home) &&
+			(!paths.Within(k, a.Home) || paths.Same(k, a.Home)) {
+			continue // the walk stops below $HOME
 		}
 		if len(k) > len(best) {
 			best = k
