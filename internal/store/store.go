@@ -81,6 +81,9 @@ var migrations = []string{
 	CREATE INDEX IF NOT EXISTS notices_rules ON notices(project, kind, lifted_at);`,
 	// v0.2: guard patterns on rules, newline-separated.
 	`ALTER TABLE notices ADD COLUMN guards TEXT NOT NULL DEFAULT '';`,
+	// Windows support: the owning claude process's creation time (unix ms, 0 = unknown), so a
+	// reused pid is not taken for the same process.
+	`ALTER TABLE sessions ADD COLUMN claude_started INTEGER NOT NULL DEFAULT 0;`,
 }
 
 func migrate(db *sql.DB) error {

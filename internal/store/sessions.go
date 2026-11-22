@@ -22,27 +22,34 @@ const IdleAfter = 15 * time.Minute
 
 // Session is one registered agent session.
 type Session struct {
-	ID        string    `json:"id"`
-	ClaudePID int       `json:"claude_pid"`
-	Profile   string    `json:"profile"`
-	Project   string    `json:"project"`
-	Repo      string    `json:"repo"`
-	Cwd       string    `json:"cwd"`
-	Branch    string    `json:"branch"`
-	Summary   string    `json:"summary"`
-	Role      string    `json:"role"`
-	Status    string    `json:"status"`
-	StartedAt time.Time `json:"started_at"`
-	LastSeen  time.Time `json:"last_seen"`
+	ID        string `json:"id"`
+	ClaudePID int    `json:"claude_pid"`
+	// ClaudeStarted is the owning claude process's creation time in unix ms;
+	// 0 when the platform does not report it (darwin, linux).
+	ClaudeStarted int64     `json:"claude_started,omitempty"`
+	Profile       string    `json:"profile"`
+	Project       string    `json:"project"`
+	Repo          string    `json:"repo"`
+	Cwd           string    `json:"cwd"`
+	Branch        string    `json:"branch"`
+	Summary       string    `json:"summary"`
+	Role          string    `json:"role"`
+	Status        string    `json:"status"`
+	StartedAt     time.Time `json:"started_at"`
+	LastSeen      time.Time `json:"last_seen"`
 }
 
-const sessionCols = `id, claude_pid, profile, project, repo, cwd, branch, summary, role, status, started_at, last_seen`
+const sessionCols = `id, claude_pid, profile, project, repo, cwd, branch, summary, role, status, started_at, last_seen, claude_started`
+
+// sameOwner matches rows owned by one claude process: the pid, and the creation
+// time when both sides know it. Parameters: pid, started, started.
+const sameOwner = `claude_pid = ? AND (claude_started = ? OR claude_started = 0 OR ? = 0)`
 
 func scanSession(row interface{ Scan(...any) error }) (Session, error) {
 	var s Session
 	var started, seen int64
 	err := row.Scan(&s.ID, &s.ClaudePID, &s.Profile, &s.Project, &s.Repo, &s.Cwd,
-		&s.Branch, &s.Summary, &s.Role, &s.Status, &started, &seen)
+		&s.Branch, &s.Summary, &s.Role, &s.Status, &started, &seen, &s.ClaudeStarted)
 	if err != nil {
 		return Session{}, err
 	}
@@ -66,21 +73,21 @@ func (s *Store) Register(in Session) (bool, error) {
 	now := s.unix()
 	res, err := s.db.Exec(`
 		INSERT INTO sessions (`+sessionCols+`)
-		VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO NOTHING`,
 		in.ID, in.ClaudePID, in.Profile, in.Project, in.Repo, in.Cwd, in.Branch,
-		RoleMember, StatusLive, now, now)
+		RoleMember, StatusLive, now, now, in.ClaudeStarted)
 	if err != nil {
 		return false, fmt.Errorf("insert session: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 1 {
-		return true, s.supersede(in.ID, in.ClaudePID)
+		return true, s.supersede(in.ID, in.ClaudePID, in.ClaudeStarted)
 	}
 	_, err = s.db.Exec(`
-		UPDATE sessions SET claude_pid = ?, profile = ?, project = ?, repo = ?, cwd = ?,
+		UPDATE sessions SET claude_pid = ?, claude_started = ?, profile = ?, project = ?, repo = ?, cwd = ?,
 			branch = ?, status = ?, last_seen = ?
 		WHERE id = ?`,
-		in.ClaudePID, in.Profile, in.Project, in.Repo, in.Cwd, in.Branch, StatusLive, now, in.ID)
+		in.ClaudePID, in.ClaudeStarted, in.Profile, in.Project, in.Repo, in.Cwd, in.Branch, StatusLive, now, in.ID)
 	if err != nil {
 		return false, fmt.Errorf("refresh session: %w", err)
 	}
@@ -89,19 +96,18 @@ func (s *Store) Register(in Session) (bool, error) {
 
 // supersede handles a claude process that switched to a new session id
 // (/clear, a new conversation in the same process): the earlier sessions of
-// that process are marked gone and the newest one's coordinator role moves to
-// the new id. A claude process runs one session at a time.
-func (s *Store) supersede(newID string, pid int) error {
+// that pid are marked gone, and the newest one's coordinator role moves to the
+// new id only when it belonged to the same process (same creation time where
+// known). A claude process runs one session at a time; a session of an earlier
+// process that died and whose pid was reused is retired without its role.
+func (s *Store) supersede(newID string, pid int, started int64) error {
 	if pid <= 0 {
 		return nil
 	}
 	var role string
-	err := s.db.QueryRow(`SELECT role FROM sessions WHERE claude_pid = ? AND id != ? AND status != ?
-		ORDER BY last_seen DESC LIMIT 1`, pid, newID, StatusGone).Scan(&role)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
+	err := s.db.QueryRow(`SELECT role FROM sessions WHERE `+sameOwner+` AND id != ? AND status != ?
+		ORDER BY last_seen DESC LIMIT 1`, pid, started, started, newID, StatusGone).Scan(&role)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("find superseded session: %w", err)
 	}
 	if _, err := s.db.Exec(`UPDATE sessions SET status = ?, role = ? WHERE claude_pid = ? AND id != ? AND status != ?`,
@@ -167,20 +173,24 @@ func (s *Store) Get(id string) (Session, error) {
 	return s.effectiveStatus(sess), nil
 }
 
-// ByClaudePID returns the most recently seen non-gone session owned by the
-// given claude process. It links an MCP server process to its session.
-func (s *Store) ByClaudePID(pid int) (Session, error) {
+// ByOwner returns the most recently seen non-gone session owned by the given
+// claude process (pid, and creation time in unix ms when known, else 0). It
+// links an MCP server process to its session.
+func (s *Store) ByOwner(pid int, started int64) (Session, error) {
 	row := s.db.QueryRow(`SELECT `+sessionCols+` FROM sessions
-		WHERE claude_pid = ? AND status != ? ORDER BY last_seen DESC LIMIT 1`, pid, StatusGone)
+		WHERE `+sameOwner+` AND status != ? ORDER BY last_seen DESC LIMIT 1`, pid, started, started, StatusGone)
 	sess, err := scanSession(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Session{}, ErrNotFound
 	}
 	if err != nil {
-		return Session{}, fmt.Errorf("find session by pid: %w", err)
+		return Session{}, fmt.Errorf("find session by owner: %w", err)
 	}
 	return s.effectiveStatus(sess), nil
 }
+
+// ByClaudePID is ByOwner with an unknown creation time.
+func (s *Store) ByClaudePID(pid int) (Session, error) { return s.ByOwner(pid, 0) }
 
 // List returns the non-gone sessions of a project, coordinator first.
 func (s *Store) List(project string) ([]Session, error) {

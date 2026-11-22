@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/orkono/cestafet/internal/core"
+	"github.com/orkono/cestafet/internal/identity"
 )
 
 // Input is the subset of the hook payload cestafet reads.
@@ -49,8 +50,8 @@ var Events = map[string]string{
 }
 
 // Handle runs one hook event. It reads the payload from in and writes the hook
-// response (if any) to out. claudePID identifies the owning claude process.
-func Handle(app *core.App, event string, in io.Reader, out io.Writer, claudePID int) error {
+// response (if any) to out. claude identifies the owning Claude Code process.
+func Handle(app *core.App, event string, in io.Reader, out io.Writer, claude identity.Proc) error {
 	name, ok := Events[event]
 	if !ok {
 		return fmt.Errorf("unknown hook event %q", event)
@@ -72,14 +73,14 @@ func Handle(app *core.App, event string, in io.Reader, out io.Writer, claudePID 
 			PermissionDecision: "ask", PermissionDecisionReason: reason}})
 	}
 
-	context, err := run(app, name, input, claudePID)
+	context, err := run(app, name, input, claude)
 	if err != nil || context == "" {
 		return err
 	}
 	return json.NewEncoder(out).Encode(output{specificOutput{HookEventName: name, AdditionalContext: context}})
 }
 
-func run(app *core.App, name string, in Input, claudePID int) (string, error) {
+func run(app *core.App, name string, in Input, claude identity.Proc) (string, error) {
 	switch name {
 	case "SessionEnd":
 		if in.Reason == "clear" {
@@ -90,7 +91,7 @@ func run(app *core.App, name string, in Input, claudePID int) (string, error) {
 		return "", app.Store.End(in.SessionID)
 
 	case "SessionStart":
-		sess, _, err := app.Register(in.SessionID, in.Cwd, claudePID)
+		sess, _, err := app.Register(in.SessionID, in.Cwd, claude)
 		if err != nil {
 			return "", err
 		}
@@ -99,7 +100,7 @@ func run(app *core.App, name string, in Input, claudePID int) (string, error) {
 	case "UserPromptSubmit":
 		// Re-resolve the project on each prompt so a /cestafet:project change or
 		// a cwd change is picked up; cheap compared to a model turn.
-		sess, isNew, err := app.Register(in.SessionID, in.Cwd, claudePID)
+		sess, isNew, err := app.Register(in.SessionID, in.Cwd, claude)
 		if err != nil {
 			return "", err
 		}
@@ -116,7 +117,7 @@ func run(app *core.App, name string, in Input, claudePID int) (string, error) {
 
 	default: // PostToolUse: must stay cheap, no git calls
 		if _, err := app.Store.Get(in.SessionID); err != nil {
-			if _, _, err := app.Register(in.SessionID, in.Cwd, claudePID); err != nil {
+			if _, _, err := app.Register(in.SessionID, in.Cwd, claude); err != nil {
 				return "", err
 			}
 		} else if err := app.Store.Touch(in.SessionID); err != nil {
