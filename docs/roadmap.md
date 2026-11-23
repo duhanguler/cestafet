@@ -37,6 +37,21 @@ Task breakdown: [plan.md](plan.md) · v0.2 design: [v0.2-design.md](v0.2-design.
 
 - Push delivery to idle sessions through Claude Code channels (opt-in; spike first, see
   [v0.2-design.md](v0.2-design.md) §2 for the allowlist constraint).
+  The spike compares a second mechanism a user found: the client's own session messaging
+  (`ListAgents` / `SendMessage`), which wakes an idle session. Constraints from the referee round
+  (2026-11-23):
+  - Waking only on an explicit request from the user in the current turn; never because a notice
+    says it is urgent or asks for it, and never because of the coordinator role.
+  - The wake message is fixed and carries no payload ("check your cestafet notices"); notice text
+    still arrives through the hooks inside `<cestafet-notice>`. Hook delivery stays until receipt
+    is confirmed.
+  - No `notify` hint until cestafet labels map reliably to client session names (including across
+    profiles); skip the wake when the match is not certain.
+  - A `Stop` hook may record a new `waiting` state (not `idle`), cleared on the next main-session
+    activity and reported as "at last hook"; it can be stale (no `Stop` on interrupt).
+  - Consider rate-limiting or a single pending wake per recipient; watch for wake loops, token
+    cost and unattended turns under auto/bypass permission modes.
+  - No desktop notifications in cestafet.
 
 ## Done for v0.3.0
 
