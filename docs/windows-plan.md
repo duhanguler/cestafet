@@ -102,13 +102,25 @@ in phase 3 with its own check.
 
 ## Status (2026-11-23)
 
-Phases 0–3 are merged (PRs #24–#29). On Windows 11 ARM64 (UTM VM): every package's tests pass;
-`setup` finds a PowerShell-profile profile under a path with a space and installs the plugin from
-the GitHub marketplace; `doctor` is correct; two sessions meet and a notice reaches the busy one
-once; MCP `whoami` resolves its session; hook latency is 14–18 ms for tool hooks and ~110 ms for
-prompt and session start. Still open for the gate: the model-driven run (coordinator, notify / ack
-across `/clear`, standing rule, guard under PowerShell) — the VM's Claude account reached its
-weekly limit.
+Phases 0–3 are merged (PRs #24–#30) and the release gate is passed.
+
+On Windows 11 ARM64 (UTM VM), Claude Code 2.1.330, the plugin from `main` loaded with
+`--plugin-dir`, two interactive sessions:
+
+- every package's tests pass; tool hooks take 14–18 ms, prompt and session start ~110 ms;
+- `setup` finds a profile set in the PowerShell profile under a path with a space and installs the
+  plugin from the GitHub marketplace; `doctor` is correct;
+- `/cestafet:coordinate`, then "do not deploy to staging until I say so, guard ./deploy.sh staging
+  and .\deploy.ps1 staging" became a guarded standing rule; the other session received it at its
+  next prompt and acknowledged it; "has everyone seen it?" showed the reply;
+- after `/clear` on both sessions the member still listed the rule and the coordinator role moved
+  to the new session id;
+- the guarded `.\deploy.ps1 staging`, run through the **PowerShell** tool, made Claude Code ask
+  with the rule as the reason; answering No left it unrun;
+- "testing is finished, deploys are allowed again" lifted the rule and the member was told.
+
+Found and fixed during the run (#30): after `/clear` a session was backfilled the notices its own
+previous id had sent.
 
 ## Release gate
 
