@@ -51,21 +51,59 @@ baton — with a **c** for Claude.
 
 ## Install
 
+### macOS and Linux
+
 ```bash
-brew install --cask orkono/tap/cestafet                      # macOS / Linux
-# or: go install github.com/orkono/cestafet/cmd/cestafet@latest
+brew install --cask orkono/tap/cestafet
 cestafet setup
 ```
 
 The binaries are not yet signed or notarized by Apple; the Homebrew cask removes macOS's
 quarantine flag after install so Gatekeeper does not block it.
 
-**Windows** (amd64, arm64): download `cestafet_<version>_windows_<arch>.zip` from the
-[releases](https://github.com/orkono/cestafet/releases), put `cestafet.exe` in a directory on your
-user `PATH` (for example `%USERPROFILE%\.local\bin`, where Claude Code's own installer puts
-`claude.exe`), open a new terminal and run `cestafet setup`. The executable is not code-signed, so
-SmartScreen may warn the first time. Claude Code runs the hooks through Git Bash, which Claude Code
-on Windows needs anyway; `go install` works too.
+### Windows (amd64, arm64)
+
+Paste into PowerShell. It downloads the latest release for your processor, checks it against the
+release's `checksums.txt`, puts `cestafet.exe` in `%USERPROFILE%\.local\bin` (where Claude Code's
+own installer puts `claude.exe`) and adds that folder to your user `PATH`:
+
+```powershell
+& {
+  $ErrorActionPreference = "Stop"; $ProgressPreference = "SilentlyContinue"
+  $rel  = Invoke-RestMethod https://api.github.com/repos/orkono/cestafet/releases/latest
+  $arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
+  $zip  = $rel.assets | Where-Object name -like "*_windows_$arch.zip"
+  $sums = $rel.assets | Where-Object name -eq "checksums.txt"
+  $tmp  = New-Item -ItemType Directory -Force "$env:TEMP\cestafet-install"
+  Invoke-WebRequest $zip.browser_download_url -OutFile "$tmp\$($zip.name)"
+  Invoke-WebRequest $sums.browser_download_url -OutFile "$tmp\checksums.txt"
+  $want = (Select-String -Path "$tmp\checksums.txt" -SimpleMatch $zip.name).Line.Split(" ")[0]
+  if ((Get-FileHash "$tmp\$($zip.name)" -Algorithm SHA256).Hash -ne $want) { throw "checksum mismatch" }
+  Expand-Archive "$tmp\$($zip.name)" -DestinationPath $tmp -Force
+  $bin = "$env:USERPROFILE\.local\bin"; New-Item -ItemType Directory -Force $bin | Out-Null
+  # A running Claude session may hold the old cestafet.exe open: move it aside, then copy.
+  Get-ChildItem "$bin\cestafet.old-*.exe" -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue
+  if (Test-Path "$bin\cestafet.exe") { Rename-Item "$bin\cestafet.exe" "cestafet.old-$(Get-Date -Format yyyyMMddHHmmss).exe" }
+  Copy-Item "$tmp\cestafet.exe" $bin
+  $path = [Environment]::GetEnvironmentVariable("Path", "User")
+  if (($path -split ";") -notcontains $bin) { [Environment]::SetEnvironmentVariable("Path", "$path;$bin", "User") }
+  & "$bin\cestafet.exe" version
+}
+```
+
+Then run `cestafet setup` (in a new terminal, so the updated `PATH` applies everywhere). Claude Code
+runs the plugin's hooks through Git Bash, which Claude Code on Windows needs anyway. The executable
+is not code-signed. To update later, paste the same block again; it works while Claude Code
+sessions are open (the old executable is set aside and removed on the next update).
+
+### With Go (any platform)
+
+```bash
+go install github.com/orkono/cestafet/cmd/cestafet@latest
+cestafet setup
+```
+
+### After installing
 
 `cestafet setup` finds every Claude Code profile on the machine (`~/.claude`, `~/.claude-*`, and
 every `CLAUDE_CONFIG_DIR` in your shell rc files, PowerShell profiles, wrapper scripts and, on
