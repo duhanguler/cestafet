@@ -52,6 +52,21 @@ Task breakdown: [plan.md](plan.md) · v0.2 design: [v0.2-design.md](v0.2-design.
   - Consider rate-limiting or a single pending wake per recipient; watch for wake loops, token
     cost and unattended turns under auto/bypass permission modes.
   - No desktop notifications in cestafet.
+- Reply tracking (user suggestion 9, refereed 2026-11-23, round desktop3): a notice can await a
+  reply, so who waits for whom is not left to the sessions' memory.
+  - `notify` takes `awaits_reply: true`; only with an explicit `to`, info only (never a rule), not
+    backfilled to later sessions.
+  - The answer is a non-empty `ack` reply or a `notify` with `in_reply_to`. It is validated (same
+    project, the replier received the notice, still open), delivered once and only to the original
+    sender as a notice, following its `/clear` successor, and clears that recipient's open request
+    in the same transaction. A bare `ack` leaves the request open. Tracked per recipient.
+  - Open requests end on a fixed TTL, when the sender withdraws them, or when the sender ends.
+  - `sessions` / `notices` show open requests as `awaiting_reply`, a name distinct from the
+    Stop-hook `waiting` state, which is reported separately as "at last hook".
+  - The waking rule above stays unchanged: a stored or standing rule never authorizes a wake.
+    Durable, owner-set consent (typed, prompt-verified, revocable) is an open spike question.
+  - Watch for reply/wake ping-pong (single pending wake, rate limit) and for an `ack` reply shown
+    both as a notice and in `notice_status`.
 
 ## Done for v0.3.0
 
