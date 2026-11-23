@@ -95,9 +95,9 @@ func TestSiblingsAndHomeDoNotMerge(t *testing.T) {
 	if b.Project != tp("/home/u/work/b") {
 		t.Fatalf("sibling or home merged: %q", b.Project)
 	}
-	top := mustRegister(t, a, "top", "/", 4)
-	tmp := mustRegister(t, a, "tmp", "/tmp/x", 5)
-	if top.Project != "/" || tmp.Project != "/tmp/x" {
+	top := mustRegister(t, a, "top", tp("/"), 4)
+	tmp := mustRegister(t, a, "tmp", tp("/tmp/x"), 5)
+	if top.Project != tp("/") || tmp.Project != tp("/tmp/x") {
 		t.Fatalf("root used as project: top=%q tmp=%q", top.Project, tmp.Project)
 	}
 }

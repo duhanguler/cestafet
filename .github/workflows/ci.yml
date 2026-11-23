@@ -20,8 +20,7 @@ jobs:
       - run: go vet ./...
       - run: go test -race ./...
 
-  # Windows support is in progress (docs/windows-plan.md): the build and vet must pass; the test
-  # suite still assumes Unix paths, so its result is reported without failing the run.
+  # Windows (docs/windows-plan.md): build for amd64 and arm64, vet and the full test suite.
   windows:
     runs-on: windows-latest
     defaults:
@@ -36,4 +35,3 @@ jobs:
       - run: go vet ./...
       - run: GOARCH=arm64 go build -o /dev/null ./cmd/cestafet
       - run: go test ./...
-        continue-on-error: true
