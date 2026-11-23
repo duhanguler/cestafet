@@ -92,10 +92,17 @@ func choose(found []setup.Profile, explicit []string, yes bool, verb string) ([]
 }
 
 func tilde(p string) string {
-	if home, err := os.UserHomeDir(); err == nil && p != "" && paths.Within(p, home) {
-		return "~" + p[len(home):]
+	home, err := os.UserHomeDir()
+	if err != nil || p == "" || !paths.Within(p, home) {
+		return p
 	}
-	return p
+	// Slice the canonical spellings: the raw ones may differ in length (an 8.3
+	// short name, a Git Bash /c/ prefix, a trailing separator).
+	cp, ch := paths.Canon(p), paths.Canon(home)
+	if len(cp) < len(ch) {
+		return p
+	}
+	return "~" + cp[len(ch):]
 }
 
 func runSetup(ctx context.Context, args []string) error {
