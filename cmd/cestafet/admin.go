@@ -126,6 +126,7 @@ func runSetup(ctx context.Context, args []string) error {
 		return err
 	}
 	failed := 0
+	fmt.Println("Using claude:", claudeLine())
 	for _, p := range chosen {
 		if err := setup.Install(ctx, setup.ClaudeRunner, p, *market); err != nil {
 			fmt.Println("  ✗", err)
@@ -158,6 +159,7 @@ func runUninstall(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("Using claude:", claudeLine())
 	for _, p := range chosen {
 		if err := setup.Uninstall(ctx, setup.ClaudeRunner, p); err != nil {
 			fmt.Println("  ✗", err)
@@ -184,8 +186,8 @@ func runDoctor(ctx context.Context) error {
 	if resolved, err := filepath.EvalSymlinks(onPath); err == nil {
 		onPath = resolved
 	}
-	fmt.Printf("Binary:\n  version     %s\n  this        %s\n  on PATH     %s\n\nProfiles:\n",
-		appVersion(), tilde(self), orNone(tilde(onPath)))
+	fmt.Printf("Binary:\n  version     %s\n  this        %s\n  on PATH     %s\n  claude      %s\n\nProfiles:\n",
+		appVersion(), tilde(self), orNone(tilde(onPath)), claudeLine())
 	plugins := map[string]setup.PluginInfo{}
 	for _, p := range found {
 		state := "not installed"
@@ -226,6 +228,15 @@ func runDoctor(ctx context.Context) error {
 	fmt.Printf("\nThis directory:\n  repository  %s\n  project     %s\n  database    %s\n  projects    %s\n",
 		key, project, tilde(db), tilde(app.ProjectsPath))
 	return nil
+}
+
+// claudeLine says which claude CLI setup, uninstall and doctor use.
+func claudeLine() string {
+	exe := setup.Claude()
+	if exe.Path == "" {
+		return "(not found: not on PATH, no Claude desktop app Claude Code)"
+	}
+	return tilde(exe.Path) + " (" + exe.Source + ")"
 }
 
 func orNone(s string) string {

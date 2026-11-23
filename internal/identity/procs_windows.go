@@ -40,3 +40,19 @@ func created(pid uint32) time.Time {
 	}
 	return time.Unix(0, c.Nanoseconds())
 }
+
+// ExePath returns the full image path of a running process, or "" when it
+// cannot be opened.
+func ExePath(pid int) string {
+	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
+	if err != nil {
+		return ""
+	}
+	defer windows.CloseHandle(h)
+	buf := make([]uint16, windows.MAX_LONG_PATH)
+	n := uint32(len(buf))
+	if err := windows.QueryFullProcessImageName(h, 0, &buf[0], &n); err != nil {
+		return ""
+	}
+	return windows.UTF16ToString(buf[:n])
+}
