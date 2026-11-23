@@ -24,7 +24,7 @@ another session, mid-task, before its next tool call:
 ```
 
 No CLI in daily use: you talk to Claude in plain language. The name is *estafet* — the relay
-baton — with a **c** for Claude, Codex, ChatGPT.
+baton — with a **c** for Claude.
 
 ## How it works
 
