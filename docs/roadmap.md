@@ -33,15 +33,18 @@ Task breakdown: [plan.md](plan.md) · v0.2 design: [v0.2-design.md](v0.2-design.
   testing"), re-shown to new and compacted sessions, lifted with plain language.
 - Guard patterns on rules: a `PreToolUse` hook asks before a Bash command a rule forbids.
 
-## v0.3.0
+## Next
 
 - Push delivery to idle sessions through Claude Code channels (opt-in; spike first, see
   [v0.2-design.md](v0.2-design.md) §2 for the allowlist constraint).
 
-## Windows support
+## Done for v0.3.0
 
-- Accepted from a user's review after a referee round; phased plan with a real-Windows release
-  gate in [windows-plan.md](windows-plan.md).
+- Windows support (amd64, arm64): identity through Git Bash hooks, path keys, data directories,
+  setup discovery (PowerShell, cmd, user environment), guard for the PowerShell tool. Plan and
+  release-gate run: [windows-plan.md](windows-plan.md).
+- The database URI is percent-encoded (a `#` or `%` in the path opened another database).
+- A session no longer receives its own notices back after `/clear`.
 
 ## Later
 
