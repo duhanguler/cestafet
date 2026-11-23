@@ -183,8 +183,10 @@ func runDoctor(ctx context.Context) error {
 		self = resolved
 	}
 	onPath, _ := exec.LookPath("cestafet")
-	if resolved, err := filepath.EvalSymlinks(onPath); err == nil {
-		onPath = resolved
+	if onPath != "" { // EvalSymlinks("") is "." on Windows
+		if resolved, err := filepath.EvalSymlinks(onPath); err == nil {
+			onPath = resolved
+		}
 	}
 	fmt.Printf("Binary:\n  version     %s\n  this        %s\n  on PATH     %s\n  claude      %s\n\nProfiles:\n",
 		appVersion(), tilde(self), orNone(tilde(onPath)), claudeLine())
