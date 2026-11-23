@@ -5,7 +5,10 @@
 cestafet passes notices between cooperating AI coding sessions of **one OS user on one machine**.
 It has no network listener, no accounts and no encryption. Its database
 (`~/.local/share/cestafet/bus.db`) is created with mode `0600`; its project map
-(`~/.config/cestafet/projects.toml`) with `0600`.
+(`~/.config/cestafet/projects.toml`) with `0600`. On Windows the files live in
+`%LOCALAPPDATA%\cestafet` and `%APPDATA%\cestafet`; Unix modes do not apply there, and the files
+are protected by the user profile's access control list, which grants only the user, SYSTEM and
+Administrators.
 
 What it defends against: one session's notice being mistaken by another session for a direct
 instruction from the user (prompt-injection hygiene between agents).

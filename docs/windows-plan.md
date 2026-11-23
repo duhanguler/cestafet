@@ -100,6 +100,16 @@ in phase 3 with its own check.
 - Docs: Windows install, data paths, `cestafet.exe` on the PATH Claude Code sees, unsigned binary
   (SmartScreen).
 
+## Status (2026-11-23)
+
+Phases 0–3 are merged (PRs #24–#29). On Windows 11 ARM64 (UTM VM): every package's tests pass;
+`setup` finds a PowerShell-profile profile under a path with a space and installs the plugin from
+the GitHub marketplace; `doctor` is correct; two sessions meet and a notice reaches the busy one
+once; MCP `whoami` resolves its session; hook latency is 14–18 ms for tool hooks and ~110 ms for
+prompt and session start. Still open for the gate: the model-driven run (coordinator, notify / ack
+across `/clear`, standing rule, guard under PowerShell) — the VM's Claude account reached its
+weekly limit.
+
 ## Release gate
 
 No Windows release before a full manual test on a real Windows machine, Claude Code native and Git

@@ -45,7 +45,8 @@ baton — with a **c** for Claude, Codex, ChatGPT.
   its own.
 - **Coordinator.** `/cestafet:coordinate` makes a session the project's coordinator and announces
   it to the others.
-- **Local only.** One Go binary, one SQLite file (`~/.local/share/cestafet/bus.db`, mode 0600),
+- **Local only.** One Go binary, one SQLite file (`~/.local/share/cestafet/bus.db`, mode 0600;
+  `%LOCALAPPDATA%\cestafet\bus.db` on Windows),
   no daemon, no network. See [SECURITY.md](SECURITY.md).
 
 ## Install
@@ -59,8 +60,16 @@ cestafet setup
 The binaries are not yet signed or notarized by Apple; the Homebrew cask removes macOS's
 quarantine flag after install so Gatekeeper does not block it.
 
+**Windows** (amd64, arm64): download `cestafet_<version>_windows_<arch>.zip` from the
+[releases](https://github.com/orkono/cestafet/releases), put `cestafet.exe` in a directory on your
+user `PATH` (for example `%USERPROFILE%\.local\bin`, where Claude Code's own installer puts
+`claude.exe`), open a new terminal and run `cestafet setup`. The executable is not code-signed, so
+SmartScreen may warn the first time. Claude Code runs the hooks through Git Bash, which Claude Code
+on Windows needs anyway; `go install` works too.
+
 `cestafet setup` finds every Claude Code profile on the machine (`~/.claude`, `~/.claude-*`, and
-every `CLAUDE_CONFIG_DIR` in your shell rc files and wrapper scripts), lets you choose, and
+every `CLAUDE_CONFIG_DIR` in your shell rc files, PowerShell profiles, wrapper scripts and, on
+Windows, your user environment variables), lets you choose, and
 installs the plugin into each chosen profile with Claude Code's own `claude plugin` commands.
 Restart open sessions afterwards. The binary must be on the `PATH` that Claude Code sees.
 
@@ -94,7 +103,7 @@ cestafet doctor               binary and plugin versions, PATH, identity of this
 
 ## Status
 
-v0.2.0. Claude Code only, macOS and Linux. Push delivery to idle sessions is planned for v0.3;
+v0.2.0. Claude Code only; macOS, Linux and Windows. Push delivery to idle sessions is planned for v0.3;
 see [docs/roadmap.md](docs/roadmap.md). Design notes: [docs/design.md](docs/design.md),
 [docs/v0.2-design.md](docs/v0.2-design.md).
 
