@@ -83,7 +83,17 @@ const markerName = "migration.json"
 
 // ReadMarker returns the marker in dir; ok is false when there is none.
 func ReadMarker(dir string) (Marker, bool, error) {
-	data, err := os.ReadFile(filepath.Join(dir, markerName))
+	var data []byte
+	var err error
+	// On Windows a read can collide with a concurrent replace (sharing
+	// violation) for a moment: retry briefly.
+	for attempt := 0; attempt < 20; attempt++ {
+		data, err = os.ReadFile(filepath.Join(dir, markerName))
+		if err == nil || os.IsNotExist(err) {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
 	if os.IsNotExist(err) {
 		return Marker{}, false, nil
 	}
@@ -106,10 +116,16 @@ func writeMarker(dir string, m Marker) error {
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return fmt.Errorf("write migration marker: %w", err)
 	}
-	if err := os.Rename(tmp, filepath.Join(dir, markerName)); err != nil {
-		return fmt.Errorf("write migration marker: %w", err)
+	// Windows refuses to replace a file another process is reading for a
+	// moment (a concurrent ReadMarker outside the lock): retry briefly.
+	var rerr error
+	for attempt := 0; attempt < 20; attempt++ {
+		if rerr = os.Rename(tmp, filepath.Join(dir, markerName)); rerr == nil {
+			return nil
+		}
+		time.Sleep(25 * time.Millisecond)
 	}
-	return nil
+	return fmt.Errorf("write migration marker: %w", rerr)
 }
 
 // Ensure makes sure the target is ready to open, migrating the newest
