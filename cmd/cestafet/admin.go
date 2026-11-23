@@ -207,6 +207,10 @@ func runDoctor(ctx context.Context) error {
 			fmt.Println("  ! " + w)
 		}
 	}
+	if !reportData() {
+		fmt.Println("\nThis directory: skipped, so doctor does not start the data migration.")
+		return nil
+	}
 	app, err := core.Open()
 	if err != nil {
 		return err
