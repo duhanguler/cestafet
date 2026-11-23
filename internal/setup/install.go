@@ -36,7 +36,8 @@ func ClaudeRunner(ctx context.Context, p Profile, args ...string) (string, error
 func profileEnv(env []string, p Profile) []string {
 	out := make([]string, 0, len(env)+1)
 	for _, kv := range env {
-		if !strings.HasPrefix(kv, "CLAUDE_CONFIG_DIR=") {
+		// Windows environment names are case-insensitive: drop every spelling.
+		if !strings.HasPrefix(strings.ToUpper(kv), "CLAUDE_CONFIG_DIR=") {
 			out = append(out, kv)
 		}
 	}

@@ -4,9 +4,9 @@ package setup
 
 import (
 	"bufio"
+	"github.com/orkono/cestafet/internal/paths"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 )
@@ -21,8 +21,6 @@ type Profile struct {
 // Name is the profile's display name.
 func (p Profile) Name() string { return strings.TrimPrefix(filepath.Base(p.Dir), ".") }
 
-var configDirRe = regexp.MustCompile(`CLAUDE_CONFIG_DIR=["']?([^"'\s;]+)`)
-
 // Discover finds profiles in home: ~/.claude, ~/.claude-*, every
 // CLAUDE_CONFIG_DIR assignment in shell rc files and in scripts on path, and
 // the current CLAUDE_CONFIG_DIR. Only directories that look like a profile
@@ -36,7 +34,7 @@ func Discover(home string, pathDirs []string, currentConfigDir string) []Profile
 		}
 		p, ok := found[dir]
 		if !ok {
-			p = &Profile{Dir: dir, Default: dir == filepath.Join(home, ".claude")}
+			p = &Profile{Dir: dir, Default: paths.Same(dir, filepath.Join(home, ".claude"))}
 			found[dir] = p
 		}
 		if wrapper != "" && !contains(p.Wrappers, wrapper) {
@@ -50,11 +48,13 @@ func Discover(home string, pathDirs []string, currentConfigDir string) []Profile
 			add(m, "")
 		}
 	}
-	for _, rc := range []string{".zshrc", ".zprofile", ".zshenv", ".bashrc", ".bash_profile", ".profile",
-		".config/fish/config.fish"} {
+	for _, rc := range shellProfiles(home) {
 		for _, dir := range scanFile(filepath.Join(home, rc)) {
-			add(dir, "~/"+rc)
+			add(dir, "~/"+filepath.ToSlash(rc))
 		}
+	}
+	for _, dir := range userEnvConfigDirs() {
+		add(dir, "user environment")
 	}
 	for _, pd := range pathDirs {
 		entries, err := os.ReadDir(pd)
@@ -62,7 +62,7 @@ func Discover(home string, pathDirs []string, currentConfigDir string) []Profile
 			continue
 		}
 		for _, e := range entries {
-			if e.IsDir() {
+			if e.IsDir() || !scanCandidate(e.Name()) {
 				continue
 			}
 			for _, dir := range scanFile(filepath.Join(pd, e.Name())) {
@@ -116,29 +116,9 @@ func scanFile(path string) []string {
 		if strings.ContainsRune(line, 0) {
 			return nil // binary
 		}
-		if strings.HasPrefix(strings.TrimSpace(line), "#") {
-			continue
-		}
-		for _, m := range configDirRe.FindAllStringSubmatch(line, -1) {
-			dirs = append(dirs, m[1])
-		}
+		dirs = append(dirs, extract(line)...)
 	}
 	return dirs
-}
-
-func expand(dir, home string) string {
-	switch {
-	case strings.HasPrefix(dir, "$HOME"):
-		dir = home + strings.TrimPrefix(dir, "$HOME")
-	case strings.HasPrefix(dir, "${HOME}"):
-		dir = home + strings.TrimPrefix(dir, "${HOME}")
-	case strings.HasPrefix(dir, "~"):
-		dir = home + strings.TrimPrefix(dir, "~")
-	}
-	if strings.Contains(dir, "$") || !filepath.IsAbs(dir) {
-		return "" // unresolvable variable or relative path
-	}
-	return filepath.Clean(dir)
 }
 
 func contains(list []string, s string) bool {
