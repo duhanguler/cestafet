@@ -77,10 +77,13 @@ func copyState(r migrate.Ranked, m migrate.Marker, has bool) string {
 		return "ACTIVE, last write " + last + " after the migration: an old cestafet still writes here; " +
 			"quit the Claude app (tray → Quit) and every session"
 	}
-	if has && m.Source == r.Copy.Name {
+	if !has || m.State != migrate.StateDone {
+		return "last activity " + last
+	}
+	if m.Source == r.Copy.Name {
 		return "migrated (kept as is), last activity " + last
 	}
-	return "stale, last activity " + last
+	return "not used (older than the migrated copy), last activity " + last
 }
 
 func fileExists(p string) bool {
