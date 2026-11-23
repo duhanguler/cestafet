@@ -118,7 +118,7 @@ func gitRoot(dir string) string {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "--show-toplevel").Output()
+	out, err := identity.Quiet(exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "--show-toplevel")).Output()
 	if err != nil {
 		return ""
 	}

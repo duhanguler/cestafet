@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/orkono/cestafet/internal/paths"
 	"io"
 	"os"
 	"os/exec"
@@ -37,11 +38,18 @@ func choose(found []setup.Profile, explicit []string, yes bool, verb string) ([]
 	if len(explicit) > 0 {
 		var out []setup.Profile
 		for _, dir := range explicit {
-			abs, err := filepath.Abs(os.ExpandEnv(strings.Replace(dir, "~", os.Getenv("HOME"), 1)))
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return nil, fmt.Errorf("locate home directory: %w", err)
+			}
+			if dir == "~" || strings.HasPrefix(dir, "~/") || strings.HasPrefix(dir, `~\`) {
+				dir = home + dir[1:] // only a leading ~: 8.3 names such as OSMANH~1 keep theirs
+			}
+			abs, err := filepath.Abs(os.ExpandEnv(dir))
 			if err != nil {
 				return nil, err
 			}
-			p := setup.Profile{Dir: abs, Default: abs == filepath.Join(os.Getenv("HOME"), ".claude")}
+			p := setup.Profile{Dir: abs, Default: paths.Same(abs, filepath.Join(home, ".claude"))}
 			out = append(out, p)
 		}
 		return out, nil
@@ -84,8 +92,8 @@ func choose(found []setup.Profile, explicit []string, yes bool, verb string) ([]
 }
 
 func tilde(p string) string {
-	if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(p, home) {
-		return "~" + strings.TrimPrefix(p, home)
+	if home, err := os.UserHomeDir(); err == nil && p != "" && paths.Within(p, home) {
+		return "~" + p[len(home):]
 	}
 	return p
 }

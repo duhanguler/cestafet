@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
+	"github.com/orkono/cestafet/internal/paths"
 	"sort"
 )
 
@@ -44,7 +44,7 @@ func VersionWarnings(binVersion, self, onPath string, plugins map[string]PluginI
 	var w []string
 	if onPath == "" {
 		w = append(w, "cestafet is not on PATH: hooks and the MCP server cannot start")
-	} else if filepath.Clean(self) != filepath.Clean(onPath) {
+	} else if !paths.Same(self, onPath) {
 		w = append(w, fmt.Sprintf("hooks run %s, not this binary (%s): check PATH order", onPath, self))
 	}
 	names := make([]string, 0, len(plugins))

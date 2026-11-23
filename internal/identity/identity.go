@@ -43,7 +43,7 @@ const gitTimeout = 2 * time.Second
 func git(dir string, args ...string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
+	cmd := Quiet(exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...))
 	out, err := cmd.Output()
 	if err != nil {
 		return ""
@@ -101,7 +101,7 @@ func NormalizeRemote(url string, resolve func(alias string) string) string {
 func sshHostname(alias string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "ssh", "-G", alias).Output()
+	out, err := Quiet(exec.CommandContext(ctx, "ssh", "-G", alias)).Output()
 	if err != nil {
 		return ""
 	}
