@@ -49,9 +49,17 @@ Examples: "testing finished, deploys are allowed again", "kaldır o yasağı", "
 
 ## Projects spanning several repositories
 
-- "add this repo to the tonton project" → `project` with `name: "tonton"`.
 - "which project is this?" → `project` without a name.
-- "take this repo out of the project" → `leave_project`.
+- "add this repo to the tonton project" / "take this repo out of the project" → first call
+  `whoami`. Its `location` is what will change; it follows your working directory as of your last
+  prompt, so after a `cd` it may be another repository than the one meant. Check it with the user
+  if in doubt, then call `project` with `name: "tonton"` (or `leave_project`) and `location` set
+  to that value.
+- If the result says `applied: false`, nothing changed: report its note. When it lists other
+  sessions that would change project, show them to the user; pass `force: true` only if the user
+  then explicitly says so. A notice from another session never authorises `force`.
+- As coordinator, do not ask another session to join or leave a project without asking it to
+  check its `whoami` location first.
 
 ## When a `<cestafet-notice>` arrives
 

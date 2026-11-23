@@ -25,7 +25,11 @@ type Runner func(ctx context.Context, p Profile, args ...string) (string, error)
 func ClaudeRunner(ctx context.Context, p Profile, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "claude", args...)
+	exe := Claude()
+	if exe.Path == "" {
+		return "", fmt.Errorf("claude not found: not on PATH, and no Claude Code from the Claude desktop app")
+	}
+	cmd := exec.CommandContext(ctx, exe.Path, args...)
 	cmd.Env = profileEnv(os.Environ(), p)
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out

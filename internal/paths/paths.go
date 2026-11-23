@@ -33,14 +33,25 @@ func host() style {
 	return posix
 }
 
-// Canon returns the canonical spelling of a filesystem path.
-func Canon(p string) string { return canon(p, host()) }
+// Canon returns the canonical spelling of a filesystem path. On Windows an
+// existing path's 8.3 short names (PROGRA~1) are expanded to their long names.
+func Canon(p string) string { return canon(expand(p), host()) }
 
 // Same reports whether two paths name the same location.
-func Same(a, b string) bool { return same(a, b, host()) }
+func Same(a, b string) bool { return same(expand(a), expand(b), host()) }
 
 // Within reports whether p is parent or a path below it.
-func Within(p, parent string) bool { return within(p, parent, host()) }
+func Within(p, parent string) bool { return within(expand(p), expand(parent), host()) }
+
+// expand returns p with 8.3 short names replaced by long names. It is the
+// identity on darwin and linux, for paths without a "~", and for paths that do
+// not exist; the pure helpers below never touch the filesystem.
+func expand(p string) string {
+	if host() != windows || !strings.Contains(p, "~") {
+		return p
+	}
+	return longName(canon(p, windows))
+}
 
 // IsRoot reports whether p is a filesystem root: "/", a drive root (C:\) or a
 // UNC share root (\\server\share).

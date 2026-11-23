@@ -32,24 +32,46 @@ type Config struct {
 }
 
 // DefaultPath returns $CESTAFET_PROJECTS, else
-// $XDG_CONFIG_HOME/cestafet/projects.toml, else %APPDATA%\cestafet\projects.toml
+// $XDG_CONFIG_HOME/cestafet/projects.toml, else %USERPROFILE%\.cestafet\projects.toml
 // on Windows and ~/.config/cestafet/projects.toml elsewhere.
 func DefaultPath() (string, error) {
 	if p := os.Getenv("CESTAFET_PROJECTS"); p != "" {
 		return p, nil
 	}
-	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" && runtime.GOOS == "windows" {
-		base = os.Getenv("APPDATA")
+	if base := os.Getenv("XDG_CONFIG_HOME"); base != "" {
+		return filepath.Join(base, "cestafet", "projects.toml"), nil
 	}
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("locate home directory: %w", err)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("locate home directory: %w", err)
+	}
+	if runtime.GOOS == "windows" {
+		return filepath.Join(home, ".cestafet", "projects.toml"), nil
+	}
+	return filepath.Join(home, ".config", "cestafet", "projects.toml"), nil
+}
+
+// Normalize parses a projects file and returns it re-encoded with path
+// entries in canonical spelling (8.3 short names expanded on Windows).
+func Normalize(data []byte) ([]byte, error) {
+	var cfg Config
+	if _, err := toml.Decode(string(data), &cfg); err != nil {
+		return nil, err
+	}
+	for name, p := range cfg.Projects {
+		np := Project{Remotes: slices.Clone(p.Remotes)}
+		for _, q := range p.Paths {
+			np.Paths = append(np.Paths, paths.Canon(q))
 		}
-		base = filepath.Join(home, ".config")
+		cfg.Projects[name] = np
 	}
-	return filepath.Join(base, "cestafet", "projects.toml"), nil
+	var buf bytes.Buffer
+	buf.WriteString("# cestafet projects: which repositories belong to which project.\n")
+	buf.WriteString("# Managed by /cestafet:project; safe to edit by hand.\n\n")
+	if err := toml.NewEncoder(&buf).Encode(cfg); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // Load reads the config; a missing file is an empty config.
@@ -197,13 +219,42 @@ func (c Config) Add(name string, l Location) (Config, error) {
 // Remove unmaps the location's repository. It returns a new Config.
 func (c Config) Remove(l Location) Config { return c.without(l) }
 
+// Explicit returns the project that maps the location's member key directly
+// (not through a parent path), if any.
+func (c Config) Explicit(l Location) (string, bool) {
+	key, isRemote := l.Member()
+	for _, name := range c.names() {
+		p := c.Projects[name]
+		if isRemote && slices.Contains(p.Remotes, key) {
+			return name, true
+		}
+		if !isRemote && slices.ContainsFunc(p.Paths, func(q string) bool { return paths.Same(q, key) }) {
+			return name, true
+		}
+	}
+	return "", false
+}
+
+// SameKey reports whether a caller-supplied key names the location's member
+// key: exactly for a remote, as the same filesystem location for a path.
+func SameKey(given string, l Location) bool {
+	key, isRemote := l.Member()
+	if given == "" {
+		return false
+	}
+	if isRemote {
+		return given == key
+	}
+	return paths.Same(given, key)
+}
+
 func (c Config) without(l Location) Config {
-	key, _ := l.Member()
+	key, isRemote := l.Member()
 	out := Config{Projects: map[string]Project{}}
 	for name, p := range c.Projects {
 		np := Project{
-			Remotes: slices.DeleteFunc(slices.Clone(p.Remotes), func(r string) bool { return r == key }),
-			Paths:   slices.DeleteFunc(slices.Clone(p.Paths), func(r string) bool { return r == key }),
+			Remotes: slices.DeleteFunc(slices.Clone(p.Remotes), func(r string) bool { return isRemote && r == key }),
+			Paths:   slices.DeleteFunc(slices.Clone(p.Paths), func(r string) bool { return !isRemote && paths.Same(r, key) }),
 		}
 		if len(np.Remotes)+len(np.Paths) > 0 {
 			out.Projects[name] = np

@@ -11,7 +11,6 @@ import (
 
 	"github.com/orkono/cestafet/internal/core"
 	"github.com/orkono/cestafet/internal/identity"
-	"github.com/orkono/cestafet/internal/projects"
 	"github.com/orkono/cestafet/internal/store"
 )
 
@@ -81,16 +80,7 @@ func view(sess store.Session, selfID string) sessionView {
 }
 
 func (s *Server) register(srv *mcp.Server) {
-	mcp.AddTool(srv, &mcp.Tool{Name: "whoami",
-		Description: "Show this session's cestafet identity: profile, project, repository, role."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, sessionView, error) {
-			me, err := s.self()
-			if err != nil {
-				return nil, sessionView{}, err
-			}
-			v := view(me, me.ID)
-			return nil, v, nil
-		})
+	s.registerWhoami(srv)
 
 	type introduceIn struct {
 		Summary string `json:"summary" jsonschema:"one line on what this session is working on"`
@@ -137,76 +127,6 @@ func (s *Server) register(srv *mcp.Server) {
 	s.registerProjectTools(srv)
 	s.registerNoticeTools(srv)
 	s.registerRuleTools(srv)
-}
-
-type projectOut struct {
-	Project string   `json:"project"`
-	Members []string `json:"members,omitempty"`
-	Note    string   `json:"note,omitempty"`
-}
-
-func (s *Server) registerProjectTools(srv *mcp.Server) {
-	type projectIn struct {
-		Name string `json:"name,omitempty" jsonschema:"project to add this repository to; omit to only show the current project"`
-	}
-	mcp.AddTool(srv, &mcp.Tool{Name: "project",
-		Description: "Show this session's project, or add this repository to a named project (a project can group " +
-			"several repositories, e.g. backend + UI) and move this session there."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in projectIn) (*mcp.CallToolResult, projectOut, error) {
-			me, err := s.self()
-			if err != nil {
-				return nil, projectOut{}, err
-			}
-			cfg, err := projects.Load(s.app.ProjectsPath)
-			if err != nil {
-				return nil, projectOut{}, err
-			}
-			if in.Name == "" {
-				return nil, projectOut{Project: me.Project, Members: cfg.Members(me.Project)}, nil
-			}
-			loc, _, err := s.app.Locate(me.Cwd)
-			if err != nil {
-				return nil, projectOut{}, err
-			}
-			next, err := cfg.Add(in.Name, loc)
-			if err != nil {
-				return nil, projectOut{}, err
-			}
-			if err := projects.Save(s.app.ProjectsPath, next); err != nil {
-				return nil, projectOut{}, err
-			}
-			if err := s.app.Store.SetProject(me.ID, in.Name); err != nil {
-				return nil, projectOut{}, err
-			}
-			return nil, projectOut{Project: in.Name, Members: next.Members(in.Name),
-				Note: "other sessions in this repository move to the project on their next prompt"}, nil
-		})
-
-	mcp.AddTool(srv, &mcp.Tool{Name: "leave_project",
-		Description: "Remove this repository from its named project; it falls back to its automatic project (its git remote)."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, projectOut, error) {
-			me, err := s.self()
-			if err != nil {
-				return nil, projectOut{}, err
-			}
-			cfg, err := projects.Load(s.app.ProjectsPath)
-			if err != nil {
-				return nil, projectOut{}, err
-			}
-			loc, _, err := s.app.Locate(me.Cwd)
-			if err != nil {
-				return nil, projectOut{}, err
-			}
-			next := cfg.Remove(loc)
-			if err := projects.Save(s.app.ProjectsPath, next); err != nil {
-				return nil, projectOut{}, err
-			}
-			project := next.Resolve(loc)
-			if err := s.app.Store.SetProject(me.ID, project); err != nil {
-				return nil, projectOut{}, err
-			}
-			return nil, projectOut{Project: project}, nil
-		})
 }
 
 func fmtErr(format string, args ...any) error { return fmt.Errorf(format, args...) }

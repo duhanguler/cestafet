@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -9,9 +10,11 @@ import (
 	"time"
 
 	"github.com/orkono/cestafet/internal/core"
+	"github.com/orkono/cestafet/internal/datadir"
 	"github.com/orkono/cestafet/internal/hooks"
 	"github.com/orkono/cestafet/internal/identity"
 	"github.com/orkono/cestafet/internal/mcpserver"
+	"github.com/orkono/cestafet/internal/migrate"
 )
 
 // runHook handles one hook event. A hook must never break the user's session,
@@ -35,11 +38,11 @@ func runHook(args []string) error {
 // logHookError appends to a small log next to the database instead of
 // printing to stderr, which Claude Code would surface in the session.
 func logHookError(event string, err error) {
-	dir, derr := os.UserCacheDir()
+	dir, derr := datadir.LogDir()
 	if derr != nil {
 		return
 	}
-	path := filepath.Join(dir, "cestafet", "hook-errors.log")
+	path := filepath.Join(dir, "hook-errors.log")
 	if os.MkdirAll(filepath.Dir(path), 0o700) != nil {
 		return
 	}
@@ -52,7 +55,7 @@ func logHookError(event string, err error) {
 }
 
 func runMCP(ctx context.Context) error {
-	app, err := core.Open()
+	app, err := openForServer(ctx)
 	if err != nil {
 		return err
 	}
@@ -62,4 +65,23 @@ func runMCP(ctx context.Context) error {
 		return nil
 	}
 	return err
+}
+
+// openForServer opens the app for the MCP server. A data migration that is
+// deferred (another process holds the old database for a moment) is retried
+// for a while, since the server lives for the whole session; a blocked one
+// needs the user ('cestafet doctor'), so it fails at once.
+func openForServer(ctx context.Context) (*core.App, error) {
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		app, err := core.Open()
+		if err == nil || !errors.Is(err, migrate.ErrDeferred) || time.Now().After(deadline) {
+			return app, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, err
+		case <-time.After(2 * time.Second):
+		}
+	}
 }

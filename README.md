@@ -36,7 +36,11 @@ baton — with a **c** for Claude.
   a session joins the nearest parent directory that already has a session.
 - **Delivery.** Notices are injected through hooks: at the next prompt (`UserPromptSubmit`) and —
   for sessions busy on their own — after their next tool call (`PostToolUse`), before they act again.
-  Subagent tool calls never consume a notice; it waits for the main agent.
+  Subagent tool calls never consume a notice; it waits for the main agent. A notice does **not**
+  wake a session that is idle, waiting for its user: it sees the notice at its next message. Where
+  your Claude Code client offers messaging between sessions, you can wake a session with it
+  yourself; that starts a turn and interrupts the session, and the client's session names are not
+  cestafet's labels.
 - **Standing rules.** "No deploys to staging while testing" is kept as a rule: it stays in force
   until lifted ("testing finished, deploys are allowed again") or until it expires, reaches
   sessions that start later, and is listed to every session when it starts or compacts.
@@ -46,8 +50,7 @@ baton — with a **c** for Claude.
 - **Coordinator.** `/cestafet:coordinate` makes a session the project's coordinator and announces
   it to the others.
 - **Local only.** One Go binary, one SQLite file (`~/.local/share/cestafet/bus.db`, mode 0600;
-  `%LOCALAPPDATA%\cestafet\bus.db` on Windows),
-  no daemon, no network. See [SECURITY.md](SECURITY.md).
+  `%USERPROFILE%\.cestafet\bus.db` on Windows), no daemon, no network. See [SECURITY.md](SECURITY.md).
 
 ## Install
 
@@ -96,6 +99,27 @@ runs the plugin's hooks through Git Bash, which Claude Code on Windows needs any
 is not code-signed. To update later, paste the same block again; it works while Claude Code
 sessions are open (the old executable is set aside and removed on the next update).
 
+Notes for Windows:
+
+- **Claude desktop app.** If you use Claude Code from the desktop app's Code tab, quit the app
+  from the notification-area icon (**Quit**, not the window's ×) and start it again after
+  installing: it reads `PATH` only when it starts. An MCP error `plugin:cestafet:cestafet …
+  Connection closed` usually means `cestafet.exe` is not on the app's `PATH` yet. `cestafet setup`
+  finds the app's own Claude Code when `claude` is not on your `PATH`.
+- **Upgrading from 0.3.0.** cestafet's data moves from `AppData` to `%USERPROFILE%\.cestafet`
+  (inside `AppData`, the desktop app's package kept a private copy that terminals and other
+  editors could not see). The first session after the upgrade copies the newest old data,
+  standing rules and named projects included; `cestafet doctor` shows what was moved and which
+  old copies remain. Quit the desktop app and every Claude Code session before upgrading, so no
+  0.3.0 process keeps writing to the old copy. `cestafet migrate --from <copy>` picks another copy
+  by hand.
+- **Data location.** `CESTAFET_DB` and `CESTAFET_PROJECTS` (user environment variables) move the
+  database and the project file elsewhere; then no migration runs.
+- **After the app restarts**, sessions that were open reappear in `/cestafet:who` once they get a
+  message.
+- **Native install only.** cestafet recognises a session by Claude Code's native `claude.exe` in
+  its process chain; a Claude Code started through `node.exe` (an old npm install) is not found.
+
 ### With Go (any platform)
 
 ```bash
@@ -124,7 +148,7 @@ The first time Claude uses a cestafet tool it asks for permission; allow it, or 
 | `/cestafet:coordinate` or "coordinate this project" | this session becomes coordinator and is announced |
 | "tell the other sessions: …" | `notify` — every other session of the project gets it |
 | `/cestafet:who` or "who else is working on this?" | `sessions` — profile, repo, branch, status, summary |
-| `/cestafet:project tonton` or "add this repo to the tonton project" | this repository joins project `tonton` |
+| `/cestafet:project tonton` or "add this repo to the tonton project" | after checking the location (`whoami`), this repository joins project `tonton`; refused if other sessions would change project, unless you confirm |
 | "did everyone get it?" | `notice_status` — delivered / acknowledged / replies |
 
 Receiving sessions treat a notice as information: a user-origin notice (your own words, relayed)

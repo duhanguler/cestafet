@@ -37,6 +37,45 @@ Task breakdown: [plan.md](plan.md) · v0.2 design: [v0.2-design.md](v0.2-design.
 
 - Push delivery to idle sessions through Claude Code channels (opt-in; spike first, see
   [v0.2-design.md](v0.2-design.md) §2 for the allowlist constraint).
+  The spike compares a second mechanism a user found: the client's own session messaging
+  (`ListAgents` / `SendMessage`), which wakes an idle session. Constraints from the referee round
+  (2026-11-23):
+  - Waking only on an explicit request from the user in the current turn; never because a notice
+    says it is urgent or asks for it, and never because of the coordinator role.
+  - The wake message is fixed and carries no payload ("check your cestafet notices"); notice text
+    still arrives through the hooks inside `<cestafet-notice>`. Hook delivery stays until receipt
+    is confirmed.
+  - No `notify` hint until cestafet labels map reliably to client session names (including across
+    profiles); skip the wake when the match is not certain.
+  - A `Stop` hook may record a new `waiting` state (not `idle`), cleared on the next main-session
+    activity and reported as "at last hook"; it can be stale (no `Stop` on interrupt).
+  - Consider rate-limiting or a single pending wake per recipient; watch for wake loops, token
+    cost and unattended turns under auto/bypass permission modes.
+  - No desktop notifications in cestafet.
+- Reply tracking (user suggestion 9, refereed 2026-11-23, round desktop3): a notice can await a
+  reply, so who waits for whom is not left to the sessions' memory.
+  - `notify` takes `awaits_reply: true`; only with an explicit `to`, info only (never a rule), not
+    backfilled to later sessions.
+  - The answer is a non-empty `ack` reply or a `notify` with `in_reply_to`. It is validated (same
+    project, the replier received the notice, still open), delivered once and only to the original
+    sender as a notice, following its `/clear` successor, and clears that recipient's open request
+    in the same transaction. A bare `ack` leaves the request open. Tracked per recipient.
+  - Open requests end on a fixed TTL, when the sender withdraws them, or when the sender ends.
+  - `sessions` / `notices` show open requests as `awaiting_reply`, a name distinct from the
+    Stop-hook `waiting` state, which is reported separately as "at last hook".
+  - The waking rule above stays unchanged: a stored or standing rule never authorizes a wake.
+    Durable, owner-set consent (typed, prompt-verified, revocable) is an open spike question.
+  - Watch for reply/wake ping-pong (single pending wake, rate limit) and for an `ack` reply shown
+    both as a notice and in `notice_status`.
+
+## Done for v0.3.1
+
+- Windows desktop app: data moves to `%USERPROFILE%\.cestafet`, migrated once from the old
+  AppData copy or the app's package copy (newest wins); `cestafet migrate` to choose another.
+- `claude.exe` found outside PATH (the desktop app's Claude Code) for setup, doctor, uninstall.
+- 8.3 short paths match their long spelling.
+- `whoami`; `project` and `leave_project` confirm the location and refuse to move other live
+  sessions unless forced. Plan: [v0.3.1-plan.md](v0.3.1-plan.md).
 
 ## Done for v0.3.0
 

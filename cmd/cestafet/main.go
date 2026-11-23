@@ -18,6 +18,8 @@ Usage:
   cestafet uninstall [--yes] [--profile <dir>]...
                            remove the plugin from profiles
   cestafet doctor          show profiles, plugin state and this directory's identity
+  cestafet migrate [--from <copy> [--replace]]
+                           Windows: show old data copies, or migrate from a chosen one
   cestafet sessions [<project>]
                            list live sessions (default: this directory's project)
   cestafet notices [<project>]
@@ -59,6 +61,8 @@ func run(ctx context.Context, args []string) error {
 		return runUninstall(ctx, rest)
 	case "doctor":
 		return runDoctor(ctx)
+	case "migrate":
+		return runMigrate(rest)
 	case "sessions":
 		return runSessions(rest)
 	case "notices":

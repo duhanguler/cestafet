@@ -1,6 +1,7 @@
 package projects
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -93,5 +94,46 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	empty, err := Load(filepath.Join(t.TempDir(), "missing.toml"))
 	if err != nil || len(empty.Projects) != 0 {
 		t.Fatalf("missing file: %+v %v", empty, err)
+	}
+}
+
+func TestSameKeyAndExplicit(t *testing.T) {
+	cfg := Config{Projects: map[string]Project{"p": {Remotes: []string{"github.com/o/r"}}}}
+	remote := loc("github.com/o/r", "/x/r", "/x/r")
+	if !SameKey("github.com/o/r", remote) || SameKey("github.com/o/other", remote) || SameKey("", remote) {
+		t.Fatal("remote key comparison")
+	}
+	if name, ok := cfg.Explicit(remote); !ok || name != "p" {
+		t.Fatalf("explicit = %q %v", name, ok)
+	}
+	folder := loc("", "", "/x/notes")
+	if !SameKey("/x/notes/", folder) {
+		t.Fatal("path key comparison should clean the path")
+	}
+	if _, ok := cfg.Explicit(folder); ok {
+		t.Fatal("folder has no explicit mapping")
+	}
+}
+
+func TestNormalizeKeepsEntriesAndRejectsGarbage(t *testing.T) {
+	in := []byte("[projects.fnet]\nremotes = [\"github.com/o/r\"]\npaths = [\"/x/notes/\"]\n")
+	out, err := Normalize(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	p := filepath.Join(dir, "p.toml")
+	if err := os.WriteFile(p, out, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m := cfg.Members("fnet"); len(m) != 2 || m[0] != "github.com/o/r" {
+		t.Fatalf("members %v", m)
+	}
+	if _, err := Normalize([]byte("[[[not toml")); err == nil {
+		t.Fatal("garbage accepted")
 	}
 }

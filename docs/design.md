@@ -150,11 +150,11 @@ a slash command.
 
 | Tool | Purpose |
 |---|---|
-| `whoami()` | this session's identity record |
+| `whoami()` | this session's identity record, with its cwd, project and location key |
 | `introduce(summary)` | set/update what this session is working on |
 | `sessions(project?)` | live sessions in the project with role, summary, last_seen |
-| `project(name?)` | show the current project, or add this repo to project `name` and move the session there |
-| `leave_project()` | remove this repo's mapping; it falls back to automatic resolution |
+| `project(name?, location?, force?)` | show the current project, or add this session's location to project `name`; changes need the `location` from `whoami` and are refused while other sessions would change project, unless forced on the user's word |
+| `leave_project(location, force?)` | remove this location's mapping (same confirmation and refusal); it falls back to automatic resolution |
 | `coordinate()` | become coordinator of the project; announces to all members |
 | `notify(body, to?)` | send a notice to every other session in the project (or to listed session ids) |
 | `notices(unread_only?)` | notices received by this session |

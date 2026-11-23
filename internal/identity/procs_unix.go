@@ -23,3 +23,6 @@ func procInfo(pid int) (Proc, bool) {
 	}
 	return Proc{PID: pid, PPID: ppid, Name: strings.Join(fields[1:], " ")}, true
 }
+
+// ExePath is not needed outside Windows: claude is found on PATH there.
+func ExePath(pid int) string { return "" }

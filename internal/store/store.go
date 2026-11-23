@@ -115,24 +115,24 @@ func migrate(db *sql.DB) error {
 }
 
 // DefaultPath returns the database location: $CESTAFET_DB, else
-// $XDG_DATA_HOME/cestafet/bus.db, else %LOCALAPPDATA%\cestafet\bus.db on
-// Windows and ~/.local/share/cestafet/bus.db elsewhere.
+// $XDG_DATA_HOME/cestafet/bus.db, else %USERPROFILE%\.cestafet\bus.db on
+// Windows (outside AppData, which the Claude desktop app's package redirects)
+// and ~/.local/share/cestafet/bus.db elsewhere.
 func DefaultPath() (string, error) {
 	if p := os.Getenv("CESTAFET_DB"); p != "" {
 		return p, nil
 	}
-	base := os.Getenv("XDG_DATA_HOME")
-	if base == "" && runtime.GOOS == "windows" {
-		base = os.Getenv("LOCALAPPDATA")
+	if base := os.Getenv("XDG_DATA_HOME"); base != "" {
+		return filepath.Join(base, "cestafet", "bus.db"), nil
 	}
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("locate home directory: %w", err)
-		}
-		base = filepath.Join(home, ".local", "share")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("locate home directory: %w", err)
 	}
-	return filepath.Join(base, "cestafet", "bus.db"), nil
+	if runtime.GOOS == "windows" {
+		return filepath.Join(home, ".cestafet", "bus.db"), nil
+	}
+	return filepath.Join(home, ".local", "share", "cestafet", "bus.db"), nil
 }
 
 // Open opens (and creates if needed) the database at path. The directory is
