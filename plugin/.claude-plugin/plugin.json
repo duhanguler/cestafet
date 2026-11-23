@@ -1,7 +1,7 @@
 {
   "name": "cestafet",
   "displayName": "cestafet",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Sessions see each other per project; tell a coordinator session something and every other session of the project gets it. Requires the cestafet binary on PATH.",
   "author": {
     "name": "orkono"

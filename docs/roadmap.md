@@ -68,6 +68,15 @@ Task breakdown: [plan.md](plan.md) · v0.2 design: [v0.2-design.md](v0.2-design.
   - Watch for reply/wake ping-pong (single pending wake, rate limit) and for an `ack` reply shown
     both as a notice and in `notice_status`.
 
+## Done for v0.3.1
+
+- Windows desktop app: data moves to `%USERPROFILE%\.cestafet`, migrated once from the old
+  AppData copy or the app's package copy (newest wins); `cestafet migrate` to choose another.
+- `claude.exe` found outside PATH (the desktop app's Claude Code) for setup, doctor, uninstall.
+- 8.3 short paths match their long spelling.
+- `whoami`; `project` and `leave_project` confirm the location and refuse to move other live
+  sessions unless forced. Plan: [v0.3.1-plan.md](v0.3.1-plan.md).
+
 ## Done for v0.3.0
 
 - Windows support (amd64, arm64): identity through Git Bash hooks, path keys, data directories,
