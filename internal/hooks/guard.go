@@ -10,11 +10,11 @@ import (
 	"github.com/orkono/cestafet/internal/store"
 )
 
-// guardReason checks a Bash command against the guard patterns of the
+// guardReason checks a shell command (Bash or PowerShell) against the guard patterns of the
 // project's rules in force. It returns the reason to ask the user with, or ""
 // to let the command run. It never denies: the user decides.
 func guardReason(app *core.App, in Input) (string, error) {
-	if in.ToolName != "Bash" || strings.TrimSpace(in.ToolInput.Command) == "" {
+	if !shellTool(in.ToolName) || strings.TrimSpace(in.ToolInput.Command) == "" {
 		return "", nil
 	}
 	sess, err := app.Store.Get(in.SessionID)
@@ -37,6 +37,10 @@ func guardReason(app *core.App, in Input) (string, error) {
 	}
 	return "", nil
 }
+
+// shellTool reports whether a tool runs shell commands: Bash, and PowerShell
+// on Windows; both carry the command in tool_input.command.
+func shellTool(name string) bool { return name == "Bash" || name == "PowerShell" }
 
 func reason(r store.Notice, pattern string) string {
 	from := r.FromProfile

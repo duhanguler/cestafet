@@ -247,6 +247,11 @@ func TestGuardAsksBeforeAMatchingCommand(t *testing.T) {
 			t.Fatalf("reason lacks %q: %q", want, h.PermissionDecisionReason)
 		}
 	}
+	// The PowerShell tool (Windows) is guarded like Bash.
+	ps := preTool(t, app, `{"session_id":"busy","cwd":"/w/app","tool_name":"PowerShell","tool_input":{"command":".\\deploy.ps1 staging"}}`)
+	if ps.HookSpecificOutput.PermissionDecision != "ask" {
+		t.Fatalf("PowerShell command not guarded: %+v", ps)
+	}
 	// A subagent's command is guarded too.
 	sub := preTool(t, app, `{"session_id":"busy","cwd":"/w/app","agent_id":"a1","tool_name":"Bash","tool_input":{"command":"deploy staging"}}`)
 	if sub.HookSpecificOutput.PermissionDecision != "ask" {
