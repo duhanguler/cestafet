@@ -51,7 +51,9 @@ func (s *Server) registerNoticeTools(srv *mcp.Server) {
 			}
 			me.Role = store.RoleCoordinator
 			body := "This session (" + core.Label(me) + ") is now the coordinator of project " + me.Project +
-				". Notices from it relay the user's decisions for the project."
+				". Notices from it relay the user's decisions for the project. Its session id changes when it" +
+				" clears its context (/clear); the coordinator role moves to the new id, so later notices from" +
+				" \"coordinator · " + me.Profile + "\" come from the same coordinator."
 			announce := store.NewNotice{From: me, Origin: store.OriginAgent, Body: body}
 			if pid := s.recentPrompt(me.ID); pid > 0 {
 				announce.Origin, announce.PromptID = store.OriginUser, pid

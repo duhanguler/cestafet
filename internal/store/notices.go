@@ -140,6 +140,13 @@ func (s *Store) recipients(n NewNotice) ([]string, error) {
 	return out, nil
 }
 
+// ownSessions selects the session and every earlier session of the same claude
+// process (a /clear starts a new id in the same process); its parameters are the
+// session id three times. A session does not get its own notices back.
+const ownSessions = `SELECT ? UNION SELECT o.id FROM sessions o JOIN sessions me ON me.id = ?
+	WHERE me.claude_pid > 0 AND o.claude_pid = me.claude_pid
+	AND (o.claude_started = me.claude_started OR o.claude_started = 0 OR me.claude_started = 0) AND o.id != ?`
+
 // Backfill gives a newly registered session the project's recent notices that
 // it would otherwise have missed, and every active rule regardless of age.
 // Lift notices are skipped: a session that never saw a rule needs no news of
@@ -147,9 +154,9 @@ func (s *Store) recipients(n NewNotice) ([]string, error) {
 func (s *Store) Backfill(sessionID, project string) error {
 	now := s.unix()
 	_, err := s.db.Exec(`INSERT OR IGNORE INTO deliveries (notice_id, to_session)
-		SELECT id, ? FROM notices n WHERE project = ? AND from_session != ?
+		SELECT id, ? FROM notices n WHERE project = ? AND from_session NOT IN (`+ownSessions+`)
 		AND ((kind = 'info' AND lifts IS NULL AND created_at >= ?) OR (kind = 'rule' AND `+activeRule+`))`,
-		sessionID, project, sessionID, now-int64(BackfillWindow.Seconds()), now)
+		sessionID, project, sessionID, sessionID, sessionID, now-int64(BackfillWindow.Seconds()), now)
 	if err != nil {
 		return fmt.Errorf("backfill notices: %w", err)
 	}

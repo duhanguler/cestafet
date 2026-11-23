@@ -239,3 +239,32 @@ func TestSendValidatesGuards(t *testing.T) {
 		}
 	}
 }
+
+func TestBackfillAfterClearSkipsOwnNotices(t *testing.T) {
+	s := newStore(t)
+	before := Session{ID: "a1", ClaudePID: 700, ClaudeStarted: 1000, Profile: "p", Project: "proj", Cwd: "/w"}
+	if _, err := s.Register(before); err != nil {
+		t.Fatal(err)
+	}
+	other := register(t, s, "b", "proj")
+	a1, _ := s.Get("a1")
+	if _, _, err := s.Send(NewNotice{From: a1, Origin: OriginAgent, Body: "I am the coordinator"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.Send(NewNotice{From: other, Origin: OriginAgent, Body: "from b"}); err != nil {
+		t.Fatal(err)
+	}
+	// /clear: the same claude process starts session a2.
+	after := before
+	after.ID = "a2"
+	if _, err := s.Register(after); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Backfill("a2", "proj"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.TakePending("a2")
+	if len(got) != 1 || got[0].Body != "from b" {
+		t.Fatalf("a2 backfill = %+v, want only b's notice", got)
+	}
+}
