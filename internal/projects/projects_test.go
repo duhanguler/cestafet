@@ -95,3 +95,21 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 		t.Fatalf("missing file: %+v %v", empty, err)
 	}
 }
+
+func TestSameKeyAndExplicit(t *testing.T) {
+	cfg := Config{Projects: map[string]Project{"p": {Remotes: []string{"github.com/o/r"}}}}
+	remote := loc("github.com/o/r", "/x/r", "/x/r")
+	if !SameKey("github.com/o/r", remote) || SameKey("github.com/o/other", remote) || SameKey("", remote) {
+		t.Fatal("remote key comparison")
+	}
+	if name, ok := cfg.Explicit(remote); !ok || name != "p" {
+		t.Fatalf("explicit = %q %v", name, ok)
+	}
+	folder := loc("", "", "/x/notes")
+	if !SameKey("/x/notes/", folder) {
+		t.Fatal("path key comparison should clean the path")
+	}
+	if _, ok := cfg.Explicit(folder); ok {
+		t.Fatal("folder has no explicit mapping")
+	}
+}

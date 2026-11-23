@@ -215,6 +215,25 @@ func (s *Store) List(project string) ([]Session, error) {
 	return out, rows.Err()
 }
 
+// Active returns every non-gone session of every project, most recently seen first.
+func (s *Store) Active() ([]Session, error) {
+	rows, err := s.db.Query(`SELECT `+sessionCols+` FROM sessions
+		WHERE status != ? ORDER BY last_seen DESC`, StatusGone)
+	if err != nil {
+		return nil, fmt.Errorf("list active sessions: %w", err)
+	}
+	defer rows.Close()
+	var out []Session
+	for rows.Next() {
+		sess, err := scanSession(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan session: %w", err)
+		}
+		out = append(out, s.effectiveStatus(sess))
+	}
+	return out, rows.Err()
+}
+
 // Coordinator returns the project's coordinator, or ErrNotFound.
 func (s *Store) Coordinator(project string) (Session, error) {
 	row := s.db.QueryRow(`SELECT `+sessionCols+` FROM sessions

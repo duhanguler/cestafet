@@ -48,13 +48,19 @@ func (a *App) Close() error { return a.Store.Close() }
 // live session (so sessions in ~/work/app and ~/work/app/docs meet), and only
 // then falls back to the directory itself.
 func (a *App) Locate(cwd string) (projects.Location, string, error) {
+	cfg, err := projects.Load(a.ProjectsPath)
+	if err != nil {
+		repo := a.LookupRepo(cwd)
+		return projects.Location{Cwd: paths.Canon(cwd), Repo: repo}, "", err
+	}
+	return a.locateWith(cwd, cfg)
+}
+
+// locateWith is Locate under a given mapping (the saved one, or a proposed one).
+func (a *App) locateWith(cwd string, cfg projects.Config) (projects.Location, string, error) {
 	repo := a.LookupRepo(cwd)
 	repo.Root = paths.Canon(repo.Root)
 	loc := projects.Location{Cwd: paths.Canon(cwd), Repo: repo}
-	cfg, err := projects.Load(a.ProjectsPath)
-	if err != nil {
-		return loc, "", err
-	}
 	project := cfg.Resolve(loc)
 	if loc.Repo.Root != "" || project != loc.Cwd {
 		return loc, project, nil

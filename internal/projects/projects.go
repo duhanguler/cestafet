@@ -197,13 +197,42 @@ func (c Config) Add(name string, l Location) (Config, error) {
 // Remove unmaps the location's repository. It returns a new Config.
 func (c Config) Remove(l Location) Config { return c.without(l) }
 
+// Explicit returns the project that maps the location's member key directly
+// (not through a parent path), if any.
+func (c Config) Explicit(l Location) (string, bool) {
+	key, isRemote := l.Member()
+	for _, name := range c.names() {
+		p := c.Projects[name]
+		if isRemote && slices.Contains(p.Remotes, key) {
+			return name, true
+		}
+		if !isRemote && slices.ContainsFunc(p.Paths, func(q string) bool { return paths.Same(q, key) }) {
+			return name, true
+		}
+	}
+	return "", false
+}
+
+// SameKey reports whether a caller-supplied key names the location's member
+// key: exactly for a remote, as the same filesystem location for a path.
+func SameKey(given string, l Location) bool {
+	key, isRemote := l.Member()
+	if given == "" {
+		return false
+	}
+	if isRemote {
+		return given == key
+	}
+	return paths.Same(given, key)
+}
+
 func (c Config) without(l Location) Config {
-	key, _ := l.Member()
+	key, isRemote := l.Member()
 	out := Config{Projects: map[string]Project{}}
 	for name, p := range c.Projects {
 		np := Project{
-			Remotes: slices.DeleteFunc(slices.Clone(p.Remotes), func(r string) bool { return r == key }),
-			Paths:   slices.DeleteFunc(slices.Clone(p.Paths), func(r string) bool { return r == key }),
+			Remotes: slices.DeleteFunc(slices.Clone(p.Remotes), func(r string) bool { return isRemote && r == key }),
+			Paths:   slices.DeleteFunc(slices.Clone(p.Paths), func(r string) bool { return !isRemote && paths.Same(r, key) }),
 		}
 		if len(np.Remotes)+len(np.Paths) > 0 {
 			out.Projects[name] = np
