@@ -4,10 +4,14 @@ package core
 
 import (
 	"fmt"
-	"github.com/orkono/cestafet/internal/paths"
 	"os"
+	"runtime"
 	"strings"
 	"time"
+
+	"github.com/orkono/cestafet/internal/datadir"
+	"github.com/orkono/cestafet/internal/migrate"
+	"github.com/orkono/cestafet/internal/paths"
 
 	"github.com/orkono/cestafet/internal/identity"
 	"github.com/orkono/cestafet/internal/projects"
@@ -22,8 +26,13 @@ type App struct {
 	Home         string // the user's home directory; never used as a project
 }
 
-// Open opens the default store and project file.
+// Open opens the default store and project file. On Windows it first moves
+// data an older version left in AppData (see package datadir); while that is
+// unfinished it returns an error instead of opening an empty database.
 func Open() (*App, error) {
+	if err := prepareData(); err != nil {
+		return nil, err
+	}
 	st, err := store.OpenDefault()
 	if err != nil {
 		return nil, err
@@ -35,6 +44,35 @@ func Open() (*App, error) {
 	}
 	home, _ := os.UserHomeDir()
 	return &App{Store: st, ProjectsPath: pp, LookupRepo: identity.LookupRepo, Home: home}, nil
+}
+
+func prepareData() error {
+	if runtime.GOOS != "windows" || !datadir.BuiltIn() {
+		return nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("locate home directory: %w", err)
+	}
+	_, err = migrate.Ensure(datadir.Target(datadir.WindowsDir(home)), datadir.LegacyCopies(home), MigrateOptions())
+	if err != nil {
+		return fmt.Errorf("cestafet is moving its data to %s and has not finished (run 'cestafet doctor'): %w",
+			datadir.WindowsDir(home), err)
+	}
+	return nil
+}
+
+// MigrateOptions are the canonicalisations applied to migrated data.
+func MigrateOptions() migrate.Options {
+	return migrate.Options{
+		Rewrite: func(key string) string {
+			if paths.IsPath(key) {
+				return paths.Canon(key)
+			}
+			return key
+		},
+		ValidateProjects: projects.Normalize,
+	}
 }
 
 // Close releases the store.

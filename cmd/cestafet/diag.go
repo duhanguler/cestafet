@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/orkono/cestafet/internal/datadir"
 	"github.com/orkono/cestafet/internal/identity"
 	"github.com/orkono/cestafet/internal/projects"
 	"github.com/orkono/cestafet/internal/store"
@@ -126,11 +127,11 @@ func gitRoot(dir string) string {
 }
 
 func diagLogPath() string {
-	dir, err := os.UserCacheDir()
+	dir, err := datadir.LogDir()
 	if err != nil {
-		dir = os.TempDir()
+		dir = filepath.Join(os.TempDir(), "cestafet")
 	}
-	return filepath.Join(dir, "cestafet", "diag.jsonl")
+	return filepath.Join(dir, "diag.jsonl")
 }
 
 func appendLine(path string, line []byte) error {

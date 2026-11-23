@@ -32,24 +32,46 @@ type Config struct {
 }
 
 // DefaultPath returns $CESTAFET_PROJECTS, else
-// $XDG_CONFIG_HOME/cestafet/projects.toml, else %APPDATA%\cestafet\projects.toml
+// $XDG_CONFIG_HOME/cestafet/projects.toml, else %USERPROFILE%\.cestafet\projects.toml
 // on Windows and ~/.config/cestafet/projects.toml elsewhere.
 func DefaultPath() (string, error) {
 	if p := os.Getenv("CESTAFET_PROJECTS"); p != "" {
 		return p, nil
 	}
-	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" && runtime.GOOS == "windows" {
-		base = os.Getenv("APPDATA")
+	if base := os.Getenv("XDG_CONFIG_HOME"); base != "" {
+		return filepath.Join(base, "cestafet", "projects.toml"), nil
 	}
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("locate home directory: %w", err)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("locate home directory: %w", err)
+	}
+	if runtime.GOOS == "windows" {
+		return filepath.Join(home, ".cestafet", "projects.toml"), nil
+	}
+	return filepath.Join(home, ".config", "cestafet", "projects.toml"), nil
+}
+
+// Normalize parses a projects file and returns it re-encoded with path
+// entries in canonical spelling (8.3 short names expanded on Windows).
+func Normalize(data []byte) ([]byte, error) {
+	var cfg Config
+	if _, err := toml.Decode(string(data), &cfg); err != nil {
+		return nil, err
+	}
+	for name, p := range cfg.Projects {
+		np := Project{Remotes: slices.Clone(p.Remotes)}
+		for _, q := range p.Paths {
+			np.Paths = append(np.Paths, paths.Canon(q))
 		}
-		base = filepath.Join(home, ".config")
+		cfg.Projects[name] = np
 	}
-	return filepath.Join(base, "cestafet", "projects.toml"), nil
+	var buf bytes.Buffer
+	buf.WriteString("# cestafet projects: which repositories belong to which project.\n")
+	buf.WriteString("# Managed by /cestafet:project; safe to edit by hand.\n\n")
+	if err := toml.NewEncoder(&buf).Encode(cfg); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // Load reads the config; a missing file is an empty config.

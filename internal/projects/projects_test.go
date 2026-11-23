@@ -1,6 +1,7 @@
 package projects
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -111,5 +112,28 @@ func TestSameKeyAndExplicit(t *testing.T) {
 	}
 	if _, ok := cfg.Explicit(folder); ok {
 		t.Fatal("folder has no explicit mapping")
+	}
+}
+
+func TestNormalizeKeepsEntriesAndRejectsGarbage(t *testing.T) {
+	in := []byte("[projects.fnet]\nremotes = [\"github.com/o/r\"]\npaths = [\"/x/notes/\"]\n")
+	out, err := Normalize(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	p := filepath.Join(dir, "p.toml")
+	if err := os.WriteFile(p, out, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m := cfg.Members("fnet"); len(m) != 2 || m[0] != "github.com/o/r" {
+		t.Fatalf("members %v", m)
+	}
+	if _, err := Normalize([]byte("[[[not toml")); err == nil {
+		t.Fatal("garbage accepted")
 	}
 }
