@@ -68,6 +68,11 @@ Task breakdown: [plan.md](plan.md) · v0.2 design: [v0.2-design.md](v0.2-design.
   - Watch for reply/wake ping-pong (single pending wake, rate limit) and for an `ack` reply shown
     both as a notice and in `notice_status`.
 
+## Done for v0.3.2
+
+- Windows: inspecting an old data copy no longer leaves `-wal` / `-shm` files beside it, and from
+  inside the desktop app the old copy is shown under its real name.
+
 ## Done for v0.3.1
 
 - Windows desktop app: data moves to `%USERPROFILE%\.cestafet`, migrated once from the old
