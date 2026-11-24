@@ -112,7 +112,8 @@ Notes for Windows:
   standing rules and named projects included; `cestafet doctor` shows what was moved and which
   old copies remain. Quit the desktop app and every Claude Code session before upgrading, so no
   0.3.0 process keeps writing to the old copy. `cestafet migrate --from <copy>` picks another copy
-  by hand.
+  by hand. Once `doctor` shows the migration done and your rules and projects are there, you can
+  delete the old copies it lists (with every Claude session and the app closed).
 - **Data location.** `CESTAFET_DB` and `CESTAFET_PROJECTS` (user environment variables) move the
   database and the project file elsewhere; then no migration runs.
 - **After the app restarts**, sessions that were open reappear in `/cestafet:who` once they get a
