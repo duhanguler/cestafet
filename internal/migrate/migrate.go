@@ -24,6 +24,10 @@ type Copy struct {
 	Name     string // short label for reports, e.g. "AppData" or the package folder
 	DB       string // bus.db path; may not exist
 	Projects string // projects.toml path; may not exist
+	// Redirectable marks a path the OS may redirect into another candidate's
+	// files (MSIX virtualization from inside a package). When it turns out to be
+	// the same file as a later candidate, that candidate's name and paths are used.
+	Redirectable bool
 }
 
 // Target is the new data location.
@@ -306,7 +310,7 @@ func publish(tmp, dst string) error {
 }
 
 func snapshot(src, tmp string) error {
-	db, err := sql.Open("sqlite", readOnlyURI(src))
+	db, err := sql.Open("sqlite", inspectURI(src))
 	if err != nil {
 		return fmt.Errorf("open %s: %w", src, err)
 	}

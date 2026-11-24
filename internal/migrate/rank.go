@@ -69,7 +69,7 @@ func inspect(c Copy) (Ranked, error) {
 	if !exists(c.DB) {
 		return r, nil
 	}
-	db, err := sql.Open("sqlite", readOnlyURI(c.DB))
+	db, err := sql.Open("sqlite", inspectURI(c.DB))
 	if err != nil {
 		r.Corrupt = err.Error()
 		return r, nil
@@ -121,26 +121,29 @@ func Orphans(candidates []Copy) []string {
 
 func dedupe(candidates []Copy) []Copy {
 	var out []Copy
-	var seen []os.FileInfo
+	var seen []os.FileInfo // parallel to out; nil when the copy has no files
 	for _, c := range candidates {
 		fi, err := os.Stat(c.DB)
 		if err != nil {
 			fi, err = os.Stat(c.Projects)
 		}
-		if err == nil {
-			dup := false
-			for _, s := range seen {
-				if os.SameFile(s, fi) {
-					dup = true
-					break
-				}
-			}
-			if dup {
-				continue
-			}
-			seen = append(seen, fi)
+		if err != nil {
+			out, seen = append(out, c), append(seen, nil)
+			continue
 		}
-		out = append(out, c)
+		dup := -1
+		for i, s := range seen {
+			if s != nil && os.SameFile(s, fi) {
+				dup = i
+				break
+			}
+		}
+		switch {
+		case dup < 0:
+			out, seen = append(out, c), append(seen, fi)
+		case out[dup].Redirectable:
+			out[dup] = c // the redirected path was this copy all along
+		}
 	}
 	return out
 }
@@ -157,6 +160,18 @@ func readOnlyURI(path string) string {
 	}
 	u := url.URL{Scheme: "file", Path: p, RawQuery: "mode=ro&_pragma=busy_timeout(2000)"}
 	return u.String()
+}
+
+// inspectURI opens an old copy read-only. When no journal is beside it (the
+// copy was closed cleanly, so the database file holds every commit), it is also
+// opened immutable: SQLite then creates no -wal or -shm next to it, so looking
+// at an old copy never makes it seem written to. With a journal present the
+// plain read-only open is needed to see the journal's commits.
+func inspectURI(path string) string {
+	if exists(path+"-wal") || exists(path+"-shm") {
+		return readOnlyURI(path)
+	}
+	return readOnlyURI(path) + "&immutable=1"
 }
 
 // checkAndRewrite verifies a snapshot and rewrites path keys in it.
