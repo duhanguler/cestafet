@@ -38,6 +38,9 @@ func LegacyCopies(profile string) []migrate.Copy {
 		Name:     "AppData",
 		DB:       filepath.Join(local, "cestafet", "bus.db"),
 		Projects: filepath.Join(profile, "AppData", "Roaming", "cestafet", "projects.toml"),
+		// Read from inside the desktop app's package, this path shows the
+		// package's copy; that copy's own entry then names it.
+		Redirectable: true,
 	}}
 	pkgs, _ := filepath.Glob(filepath.Join(local, "Packages", "Claude_*"))
 	sort.Strings(pkgs)
